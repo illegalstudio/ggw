@@ -40,18 +40,36 @@ make build
 
 ```bash
 # from inside a repo:
-ggw list                  # show all worktrees of the current repo
-ggw list --json           # machine-readable output
-ggw create feature/login  # create worktree at .../<org>/<repo>/feature-login/
-                          # creates the branch from HEAD if it does not exist
+ggw list                    # show all worktrees of the current repo
+ggw list --json             # machine-readable output
+ggw create feature/login    # create worktree at .../<org>/<repo>/feature-login/
+                            # creates the branch from HEAD if it does not exist
 ggw create fix --from main  # create branch from a specific base
+ggw cd feature/login        # cd into a worktree (needs shell integration, see below)
+ggw cd                      # interactive selector
 ```
+
+## Shell integration
+
+`ggw cd` needs a shell wrapper to actually change your shell's directory.
+Add to your shell config (once):
+
+```bash
+eval "$(ggw init bash)"   # in ~/.bashrc
+eval "$(ggw init zsh)"    # in ~/.zshrc
+ggw init fish | source    # in ~/.config/fish/config.fish
+```
+
+The wrapper intercepts `ggw cd` and turns it into a real `cd`. Every other
+subcommand (`list`, `create`, ...) passes through unchanged.
+
+Without the wrapper, `ggw cd <name>` simply prints the worktree path on
+stdout — useful for `cd "$(ggw cd foo)"` or piping into other tools.
 
 ## Status
 
-Iterazione 1 (questa release): `list` e `create` sono operativi.
-Tutti gli altri comandi (`cd`, `exec`, `delete`, `init`) sono stub —
-vedi [`ROADMAP.md`](ROADMAP.md) per il piano delle prossime iterazioni.
+`list`, `create`, `cd`, `init` are operative. `exec` and `delete` are
+stub — see [`ROADMAP.md`](ROADMAP.md) for the plan.
 
 ## License
 

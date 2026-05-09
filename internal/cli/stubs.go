@@ -19,21 +19,6 @@ func stubRunE(name string) func(*cobra.Command, []string) error {
 	}
 }
 
-// TODO(iter 2): implement shell integration (`ggw init`, `ggw cd-path`, `ggw cd`).
-var initCmd = &cobra.Command{
-	Use:     "init <bash|zsh|fish>",
-	Short:   "Print shell integration script (stub)",
-	GroupID: GroupShell,
-	RunE:    stubRunE("init"),
-}
-
-var cdCmd = &cobra.Command{
-	Use:     "cd [name]",
-	Short:   "Change directory into a worktree (stub — needs shell integration)",
-	GroupID: GroupShell,
-	RunE:    stubRunE("cd"),
-}
-
 // TODO(iter 3): implement `ggw exec` and `ggw delete`.
 var execCmd = &cobra.Command{
 	Use:     "exec [name] -- <cmd>",
@@ -50,5 +35,5 @@ var deleteCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(initCmd, cdCmd, execCmd, deleteCmd)
+	rootCmd.AddCommand(execCmd, deleteCmd)
 }

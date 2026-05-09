@@ -14,10 +14,10 @@
 
 ## Iterazione 2: Navigazione
 
-- [ ] `ggw init zsh|bash|fish`
-- [ ] Sottocomando interno `cd-path`
-- [ ] `ggw cd [name]` con selector huh
-- [ ] Shell function testata in zsh/bash
+- [x] `ggw init zsh|bash|fish`
+- [x] `ggw cd [name]` (stampa path; lo shell wrapper intercetta e fa chdir)
+- [x] Selector huh quando `name` è omesso o ambiguo
+- [x] Shell function testata in zsh/bash
 
 ## Iterazione 3: Operazioni
 
