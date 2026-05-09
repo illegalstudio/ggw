@@ -1,0 +1,58 @@
+# ggw
+
+Git worktrees, ergonomic. Stores all worktrees of all your repos in a single
+predictable location, derived from the repo's `origin` remote and the branch
+name.
+
+```
+~/.local/share/worktrees/<org>/<repo>/<branch-slug>/
+```
+
+For example, in a repo whose `origin` is `git@github.com:acme/api.git`:
+
+| Branch          | Worktree path                                          |
+|-----------------|--------------------------------------------------------|
+| `feature/login` | `~/.local/share/worktrees/acme/api/feature-login/`     |
+| `hotfix-123`    | `~/.local/share/worktrees/acme/api/hotfix-123/`        |
+| `BugFix/User A` | `~/.local/share/worktrees/acme/api/bugfix-user-a/`     |
+
+`XDG_DATA_HOME` is respected: if set, worktrees live under
+`$XDG_DATA_HOME/worktrees/...`.
+
+The branch name is **not** slugified — it is passed unchanged to git.
+Only the directory name is slugified.
+
+## Install
+
+```bash
+go install github.com/illegalstudio/ggw/cmd/ggw@latest
+```
+
+Or build from source:
+
+```bash
+git clone https://github.com/illegalstudio/ggw.git
+cd ggw
+make build
+```
+
+## Usage
+
+```bash
+# from inside a repo:
+ggw list                  # show all worktrees of the current repo
+ggw list --json           # machine-readable output
+ggw create feature/login  # create worktree at .../<org>/<repo>/feature-login/
+                          # creates the branch from HEAD if it does not exist
+ggw create fix --from main  # create branch from a specific base
+```
+
+## Status
+
+Iterazione 1 (questa release): `list` e `create` sono operativi.
+Tutti gli altri comandi (`cd`, `exec`, `delete`, `init`) sono stub —
+vedi [`ROADMAP.md`](ROADMAP.md) per il piano delle prossime iterazioni.
+
+## License
+
+MIT — see [`LICENSE`](LICENSE).

@@ -1,0 +1,140 @@
+package worktree
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// Worktree describes a single entry from `git worktree list --porcelain`.
+type Worktree struct {
+	Path     string `json:"path"`
+	Head     string `json:"head,omitempty"`
+	Branch   string `json:"branch,omitempty"` // empty if detached
+	Detached bool   `json:"detached,omitempty"`
+	Locked   bool   `json:"locked,omitempty"`
+	Bare     bool   `json:"bare,omitempty"`
+}
+
+// List returns all worktrees registered for the repo containing repoPath.
+func List(repoPath string) ([]Worktree, error) {
+	cmd := exec.Command("git", "-C", repoPath, "worktree", "list", "--porcelain")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, gitError("git worktree list", err)
+	}
+	return parseList(string(out)), nil
+}
+
+func parseList(s string) []Worktree {
+	var result []Worktree
+	var cur *Worktree
+	flush := func() {
+		if cur != nil && cur.Path != "" {
+			result = append(result, *cur)
+		}
+		cur = nil
+	}
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimRight(line, "\r")
+		if line == "" {
+			flush()
+			continue
+		}
+		if cur == nil {
+			cur = &Worktree{}
+		}
+		key, val, _ := strings.Cut(line, " ")
+		switch key {
+		case "worktree":
+			cur.Path = val
+		case "HEAD":
+			cur.Head = val
+		case "branch":
+			cur.Branch = strings.TrimPrefix(val, "refs/heads/")
+		case "detached":
+			cur.Detached = true
+		case "locked":
+			cur.Locked = true
+		case "bare":
+			cur.Bare = true
+		}
+	}
+	flush()
+	return result
+}
+
+// branchExistsLocal reports whether `branch` resolves to a local ref.
+func branchExistsLocal(repoPath, branch string) bool {
+	cmd := exec.Command("git", "-C", repoPath, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	return cmd.Run() == nil
+}
+
+// remoteBranchRef returns the cached remote ref (e.g. "origin/feature/x") for
+// `branch` if it exists locally as a remote-tracking ref. Empty string if not.
+func remoteBranchRef(repoPath, branch string) string {
+	candidate := "refs/remotes/origin/" + branch
+	cmd := exec.Command("git", "-C", repoPath, "show-ref", "--verify", "--quiet", candidate)
+	if cmd.Run() == nil {
+		return "origin/" + branch
+	}
+	return ""
+}
+
+// CreateOptions configures a `git worktree add` invocation.
+type CreateOptions struct {
+	RepoPath string // git repo to operate from
+	Branch   string // branch name (passed verbatim to git)
+	DestPath string // absolute filesystem path for the new worktree
+	From     string // optional base ref; only used when creating a new branch
+}
+
+// Create creates a new worktree for opts.Branch at opts.DestPath.
+//
+// Behavior:
+//   - if the branch exists locally → checkout that branch
+//   - else if a tracking ref `origin/<branch>` exists → create a tracking branch
+//   - else → create a new branch from opts.From (or HEAD)
+func Create(opts CreateOptions) error {
+	if _, err := os.Stat(opts.DestPath); err == nil {
+		return fmt.Errorf("path already exists: %s", opts.DestPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(opts.DestPath), 0o755); err != nil {
+		return fmt.Errorf("cannot create parent directory: %w", err)
+	}
+
+	args := []string{"-C", opts.RepoPath, "worktree", "add"}
+	switch {
+	case branchExistsLocal(opts.RepoPath, opts.Branch):
+		args = append(args, opts.DestPath, opts.Branch)
+	case remoteBranchRef(opts.RepoPath, opts.Branch) != "":
+		args = append(args, "--track", "-b", opts.Branch, opts.DestPath, remoteBranchRef(opts.RepoPath, opts.Branch))
+	default:
+		base := opts.From
+		if base == "" {
+			base = "HEAD"
+		}
+		args = append(args, "-b", opts.Branch, opts.DestPath, base)
+	}
+
+	cmd := exec.Command("git", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git worktree add failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+func gitError(label string, err error) error {
+	if exitErr, ok := err.(*exec.ExitError); ok {
+		stderr := strings.TrimSpace(string(exitErr.Stderr))
+		if stderr != "" {
+			return fmt.Errorf("%s failed: %s", label, stderr)
+		}
+	}
+	return fmt.Errorf("%s failed: %w", label, err)
+}
