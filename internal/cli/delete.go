@@ -13,9 +13,10 @@ import (
 )
 
 var deleteCmd = &cobra.Command{
-	Use:     "delete [name]",
-	Short:   "Delete a worktree",
-	GroupID: GroupWorktree,
+	Use:               "delete [name]",
+	Short:             "Delete a worktree",
+	GroupID:           GroupWorktree,
+	ValidArgsFunction: deleteCompletion,
 	Long: `Delete a worktree. Without arguments, opens an interactive selector.
 
 Flags:
@@ -50,6 +51,10 @@ Flags:
 		wt, err := resolveOneWorktree(list, query)
 		if err != nil {
 			return err
+		}
+
+		if wt.Path == root {
+			return fmt.Errorf("cannot delete the main worktree (current directory)")
 		}
 
 		if !force {

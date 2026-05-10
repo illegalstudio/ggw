@@ -13,9 +13,10 @@ import (
 )
 
 var cdCmd = &cobra.Command{
-	Use:     "cd [name]",
-	Short:   "Print the worktree path (chdir requires shell integration — see `ggw init`)",
-	GroupID: GroupWorktree,
+	Use:               "cd [name]",
+	Short:             "Print the worktree path (chdir requires shell integration — see `ggw init`)",
+	GroupID:           GroupWorktree,
+	ValidArgsFunction: worktreeCompletion,
 	Long: `Print the absolute path of a worktree on stdout.
 
 Without shell integration, this just prints — the binary cannot change the

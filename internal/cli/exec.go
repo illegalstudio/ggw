@@ -15,6 +15,7 @@ var execCmd = &cobra.Command{
 	Use:                   "exec [name] -- <cmd>...",
 	Short:                 "Run a command inside a worktree",
 	GroupID:               GroupWorktree,
+	ValidArgsFunction:     worktreeCompletion,
 	DisableFlagsInUseLine: true,
 	Long: `Run an arbitrary command inside a worktree's directory.
 

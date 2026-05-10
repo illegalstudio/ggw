@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -39,11 +40,33 @@ function ggw
 end
 `
 
+func generateCompletionScript(shell string) (string, error) {
+	var buf strings.Builder
+	switch shell {
+	case "bash":
+		if err := rootCmd.GenBashCompletion(&buf); err != nil {
+			return "", err
+		}
+	case "zsh":
+		if err := rootCmd.GenZshCompletion(&buf); err != nil {
+			return "", err
+		}
+	case "fish":
+		if err := rootCmd.GenFishCompletion(&buf, true); err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("unsupported shell: %s", shell)
+	}
+	return buf.String(), nil
+}
+
 var initCmd = &cobra.Command{
 	Use:     "init <bash|zsh|fish>",
-	Short:   "Print shell integration script (eval to enable `ggw cd`)",
+	Short:   "Print shell integration script (eval to enable `ggw cd` and completions)",
 	GroupID: GroupShell,
-	Long: `Print a shell function that makes "ggw cd" actually change directory.
+	Long: `Print a shell function that makes "ggw cd" actually change directory,
+plus tab-completion for ggw commands and worktree names.
 
 Add to your shell config:
   bash:  eval "$(ggw init bash)"   (in ~/.bashrc)
@@ -51,7 +74,9 @@ Add to your shell config:
   fish:  ggw init fish | source    (in ~/.config/fish/config.fish)
 
 Then:
-  ggw cd <name>      # cd into a worktree (interactive selector if name omitted)`,
+  ggw cd <name>      # cd into a worktree (interactive selector if name omitted)
+  ggw de<TAB>        # complete commands
+  ggw cd fea<TAB>    # complete worktree names`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		shell := "zsh"
@@ -59,21 +84,28 @@ Then:
 			shell = args[0]
 		}
 
-		var script string
+		var script strings.Builder
 		switch shell {
 		case "bash", "zsh":
-			script = bashZshFunction
+			script.WriteString(bashZshFunction)
 		case "fish":
-			script = fishFunction
+			script.WriteString(fishFunction)
 		default:
 			return fmt.Errorf("unsupported shell: %s (use bash, zsh, or fish)", shell)
 		}
 
-		if done, err := maybeJSON(map[string]any{"shell": shell, "script": script}); done {
+		comp, err := generateCompletionScript(shell)
+		if err != nil {
+			return err
+		}
+		script.WriteString("\n")
+		script.WriteString(comp)
+
+		if done, err := maybeJSON(map[string]any{"shell": shell, "script": script.String()}); done {
 			return err
 		}
 
-		fmt.Print(script)
+		fmt.Print(script.String())
 		return nil
 	},
 }
