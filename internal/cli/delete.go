@@ -93,7 +93,7 @@ Flags:
 
 		fmt.Printf("%s Worktree removed: %s\n",
 			ui.Success.Render("✓"),
-			ui.Path.Render(wt.Path),
+			ui.Path.Render(displayPath(wt.Path)),
 		)
 		if withBranch && wt.Branch != "" {
 			if branchDeleted {
@@ -121,7 +121,7 @@ func confirmDelete(w *worktree.Worktree, withBranch bool) (bool, error) {
 	if label == "" {
 		label = filepath.Base(w.Path)
 	}
-	title := fmt.Sprintf("Delete worktree %q at %s?", label, w.Path)
+	title := fmt.Sprintf("Delete worktree %q at %s?", label, displayPath(w.Path))
 	if withBranch && w.Branch != "" {
 		title += fmt.Sprintf(" (branch %q will also be deleted)", w.Branch)
 	}

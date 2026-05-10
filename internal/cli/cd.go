@@ -129,7 +129,7 @@ func selectWorktree(list []worktree.Worktree, title string) (*worktree.Worktree,
 				label = filepath.Base(w.Path)
 			}
 		}
-		options[i] = huh.NewOption(fmt.Sprintf("%s → %s", label, w.Path), i)
+		options[i] = huh.NewOption(fmt.Sprintf("%s → %s", label, displayPath(w.Path)), i)
 	}
 
 	var idx int

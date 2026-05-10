@@ -65,7 +65,7 @@ var createCmd = &cobra.Command{
 		fmt.Printf("%s Worktree created: %s → %s\n",
 			ui.Success.Render("✓"),
 			ui.Branch.Render(branch),
-			ui.Path.Render(dest),
+			ui.Path.Render(displayPath(dest)),
 		)
 		return nil
 	},

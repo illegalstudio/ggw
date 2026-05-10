@@ -71,7 +71,7 @@ propagated as ggw's exit code.`,
 			return err
 		}
 
-		fmt.Fprintf(os.Stderr, "%s in %s\n", ui.Muted.Render("ggw exec"), ui.Path.Render(wt.Path))
+		fmt.Fprintf(os.Stderr, "%s in %s\n", ui.Muted.Render("ggw exec"), ui.Path.Render(displayPath(wt.Path)))
 
 		c := osexec.Command(after[0], after[1:]...)
 		c.Dir = wt.Path
