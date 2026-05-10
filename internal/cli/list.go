@@ -100,7 +100,7 @@ var listCmd = &cobra.Command{
 				ui.Success.Render("●"),
 				ui.Branch.Render(labels[i]),
 				pad,
-				ui.Path.Render(displayPath(e.Path)),
+				ui.Path.Render(compactPath(e.Path)),
 				suffix,
 				lockTag,
 			)

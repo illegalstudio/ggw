@@ -95,9 +95,9 @@ func SlugifyBranch(branch string) string {
 	return strings.TrimRight(b.String(), "-")
 }
 
-// WorktreePath returns the absolute path where a worktree for (org, repo, slug)
-// should live, honoring XDG_DATA_HOME when set.
-func WorktreePath(org, repo, slug string) (string, error) {
+// WorktreesBase returns the directory under which all ggw-managed worktrees
+// live: $XDG_DATA_HOME/worktrees, or ~/.local/share/worktrees as a fallback.
+func WorktreesBase() (string, error) {
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()
@@ -106,10 +106,20 @@ func WorktreePath(org, repo, slug string) (string, error) {
 		}
 		base = filepath.Join(home, ".local", "share")
 	}
+	return filepath.Join(base, "worktrees"), nil
+}
+
+// WorktreePath returns the absolute path where a worktree for (org, repo, slug)
+// should live, honoring XDG_DATA_HOME when set.
+func WorktreePath(org, repo, slug string) (string, error) {
+	base, err := WorktreesBase()
+	if err != nil {
+		return "", err
+	}
 	if org == "" || repo == "" || slug == "" {
 		return "", fmt.Errorf("worktree path components must be non-empty (org=%q repo=%q slug=%q)", org, repo, slug)
 	}
-	return filepath.Join(base, "worktrees", org, repo, slug), nil
+	return filepath.Join(base, org, repo, slug), nil
 }
 
 // RepoRoot returns the absolute path of the git repo containing cwd.
