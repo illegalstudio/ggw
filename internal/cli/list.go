@@ -31,6 +31,8 @@ var listCmd = &cobra.Command{
 	GroupID: GroupWorktree,
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fullPath, _ := cmd.Flags().GetBool("full-path")
+
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -100,7 +102,7 @@ var listCmd = &cobra.Command{
 				ui.Success.Render("●"),
 				ui.Branch.Render(labels[i]),
 				pad,
-				ui.Path.Render(compactPath(e.Path)),
+				ui.Path.Render(renderPath(e.Path, fullPath)),
 				suffix,
 				lockTag,
 			)
@@ -111,7 +113,15 @@ var listCmd = &cobra.Command{
 }
 
 func init() {
+	listCmd.Flags().Bool("full-path", false, "Show the full (tildified) path instead of the [...] short form")
 	rootCmd.AddCommand(listCmd)
+}
+
+func renderPath(p string, full bool) string {
+	if full {
+		return displayPath(p)
+	}
+	return compactPath(p)
 }
 
 func labelFor(e listEntry) string {
