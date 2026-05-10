@@ -21,8 +21,8 @@
 
 ## Iterazione 3: Operazioni
 
-- [ ] `ggw exec [name] -- <cmd>`
-- [ ] `ggw delete [name]` con `--with-branch` e `--force`
+- [x] `ggw exec [name] -- <cmd>` (propaga exit code, refuses `--json`)
+- [x] `ggw delete [name]` con `--with-branch` e `--force` (huh confirm; `--force` salta conferma)
 
 ## Backlog / future
 

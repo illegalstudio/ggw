@@ -129,6 +129,35 @@ func Create(opts CreateOptions) error {
 	return nil
 }
 
+// Remove invokes `git worktree remove` for the given worktree path.
+// If force is true, dirty worktrees are removed too.
+func Remove(repoPath, worktreePath string, force bool) error {
+	args := []string{"-C", repoPath, "worktree", "remove"}
+	if force {
+		args = append(args, "--force")
+	}
+	args = append(args, worktreePath)
+
+	cmd := exec.Command("git", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git worktree remove failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// DeleteBranch deletes a local branch (force, to also remove unmerged branches).
+func DeleteBranch(repoPath, branch string) error {
+	cmd := exec.Command("git", "-C", repoPath, "branch", "-D", branch)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git branch -D %s failed: %w: %s", branch, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
 func gitError(label string, err error) error {
 	if exitErr, ok := err.(*exec.ExitError); ok {
 		stderr := strings.TrimSpace(string(exitErr.Stderr))

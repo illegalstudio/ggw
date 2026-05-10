@@ -40,13 +40,16 @@ make build
 
 ```bash
 # from inside a repo:
-ggw list                    # show all worktrees of the current repo
-ggw list --json             # machine-readable output
-ggw create feature/login    # create worktree at .../<org>/<repo>/feature-login/
-                            # creates the branch from HEAD if it does not exist
-ggw create fix --from main  # create branch from a specific base
-ggw cd feature/login        # cd into a worktree (needs shell integration, see below)
-ggw cd                      # interactive selector
+ggw list                              # show all worktrees of the current repo
+ggw list --json                       # machine-readable output
+ggw create feature/login              # create worktree at .../<org>/<repo>/feature-login/
+                                      # creates the branch from HEAD if it does not exist
+ggw create fix --from main            # create branch from a specific base
+ggw cd feature/login                  # cd into a worktree (needs shell integration, see below)
+ggw cd                                # interactive selector
+ggw exec feature/login -- npm install # run a command inside a worktree
+ggw delete feature/login              # remove a worktree (prompts to confirm)
+ggw delete feature/login --with-branch --force  # also delete the branch, skip confirm
 ```
 
 ## Shell integration
@@ -68,8 +71,8 @@ stdout — useful for `cd "$(ggw cd foo)"` or piping into other tools.
 
 ## Status
 
-`list`, `create`, `cd`, `init` are operative. `exec` and `delete` are
-stub — see [`ROADMAP.md`](ROADMAP.md) for the plan.
+All commands are operative. See [`ROADMAP.md`](ROADMAP.md) for the
+backlog (config file, post-create hooks, completions, releases).
 
 ## License
 
