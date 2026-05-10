@@ -129,6 +129,39 @@ func Create(opts CreateOptions) error {
 	return nil
 }
 
+// Status captures the per-worktree git state shown by `ggw list`.
+type Status struct {
+	Dirty       bool `json:"dirty"`
+	Ahead       int  `json:"ahead"`
+	Behind      int  `json:"behind"`
+	HasUpstream bool `json:"has_upstream"`
+}
+
+// GetStatus runs `git status --porcelain` and (if an upstream is configured)
+// `git rev-list --left-right --count HEAD...@{upstream}` for the worktree at
+// worktreePath. A missing upstream is not an error — Ahead/Behind are simply
+// left at zero and HasUpstream stays false.
+func GetStatus(worktreePath string) (Status, error) {
+	var s Status
+
+	out, err := exec.Command("git", "-C", worktreePath, "status", "--porcelain").Output()
+	if err != nil {
+		return s, gitError("git status", err)
+	}
+	s.Dirty = len(strings.TrimSpace(string(out))) > 0
+
+	out, err = exec.Command("git", "-C", worktreePath, "rev-list", "--left-right", "--count", "HEAD...@{upstream}").Output()
+	if err == nil {
+		var ahead, behind int
+		if _, scanErr := fmt.Sscanf(strings.TrimSpace(string(out)), "%d\t%d", &ahead, &behind); scanErr == nil {
+			s.Ahead = ahead
+			s.Behind = behind
+			s.HasUpstream = true
+		}
+	}
+	return s, nil
+}
+
 // Remove invokes `git worktree remove` for the given worktree path.
 // If force is true, dirty worktrees are removed too.
 func Remove(repoPath, worktreePath string, force bool) error {
