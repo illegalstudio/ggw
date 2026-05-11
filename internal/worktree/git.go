@@ -84,6 +84,17 @@ func remoteBranchRef(repoPath, branch string) string {
 	return ""
 }
 
+// DefaultBranch returns the branch pointed to by origin/HEAD, without the
+// remote prefix. It is empty only if git returns an empty symbolic ref.
+func DefaultBranch(repoPath string) (string, error) {
+	cmd := exec.Command("git", "-C", repoPath, "symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", gitError("git symbolic-ref refs/remotes/origin/HEAD", err)
+	}
+	return strings.TrimPrefix(strings.TrimSpace(string(out)), "origin/"), nil
+}
+
 // CreateOptions configures a `git worktree add` invocation.
 type CreateOptions struct {
 	RepoPath string // git repo to operate from

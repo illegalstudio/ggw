@@ -48,8 +48,8 @@ ggw create fix --from main            # create branch from a specific base
 ggw cd feature/login                  # cd into a worktree (needs shell integration, see below)
 ggw cd                                # interactive selector
 ggw exec feature/login -- npm install # run a command inside a worktree
-ggw delete feature/login              # remove a worktree (prompts to confirm)
-ggw delete feature/login --with-branch --force  # also delete the branch, skip confirm
+ggw delete feature/login              # remove a worktree and its branch (prompts to confirm)
+ggw delete feature/login --without-branch --force  # keep the branch, skip confirm
 ```
 
 ## Shell integration

@@ -47,7 +47,7 @@ func worktreeCompletion(cmd *cobra.Command, args []string, toComplete string) ([
 }
 
 // deleteCompletion è come worktreeCompletion ma filtra via il main worktree
-// (quello il cui path è la root del repo) per evitare cancellazioni accidentali.
+// e il worktree corrente per evitare cancellazioni accidentali.
 func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -62,10 +62,14 @@ func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]s
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveError
 	}
+	if len(list) == 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	mainWorktreePath := list[0].Path
 
 	var comps []string
 	for _, w := range list {
-		if w.Path == root {
+		if w.Path == root || w.Path == mainWorktreePath {
 			continue
 		}
 		if w.Branch != "" {

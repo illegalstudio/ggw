@@ -20,12 +20,12 @@ var deleteCmd = &cobra.Command{
 	Long: `Delete a worktree. Without arguments, opens an interactive selector.
 
 Flags:
-  --force         remove even if the worktree is dirty (skips confirmation)
-  --with-branch   also delete the local branch the worktree pointed to`,
+  --force            remove even if the worktree is dirty (skips confirmation)
+  --without-branch   keep the local branch the worktree pointed to`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		force, _ := cmd.Flags().GetBool("force")
-		withBranch, _ := cmd.Flags().GetBool("with-branch")
+		withoutBranch, _ := cmd.Flags().GetBool("without-branch")
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -43,6 +43,7 @@ Flags:
 		if len(list) == 0 {
 			return fmt.Errorf("no worktrees registered for this repository")
 		}
+		mainWorktreePath := list[0].Path
 
 		query := ""
 		if len(args) == 1 {
@@ -54,11 +55,19 @@ Flags:
 		}
 
 		if wt.Path == root {
-			return fmt.Errorf("cannot delete the main worktree (current directory)")
+			if wt.Path == mainWorktreePath {
+				return fmt.Errorf("cannot delete the main worktree (current directory)")
+			}
+			return fmt.Errorf("cannot delete the current worktree")
+		}
+		if wt.Path == mainWorktreePath {
+			return fmt.Errorf("cannot delete the main worktree")
 		}
 
+		deleteBranch := !withoutBranch && wt.Branch != "" && !isProtectedMainBranch(root, list, wt.Branch)
+
 		if !force {
-			ok, err := confirmDelete(wt, withBranch)
+			ok, err := confirmDelete(wt, deleteBranch)
 			if err != nil {
 				return err
 			}
@@ -77,7 +86,7 @@ Flags:
 
 		var branchDeleted bool
 		var branchErr string
-		if withBranch && wt.Branch != "" {
+		if deleteBranch {
 			if err := worktree.DeleteBranch(root, wt.Branch); err != nil {
 				branchErr = err.Error()
 			} else {
@@ -89,7 +98,7 @@ Flags:
 			"deleted":        true,
 			"path":           wt.Path,
 			"branch":         wt.Branch,
-			"with_branch":    withBranch,
+			"without_branch": withoutBranch,
 			"branch_deleted": branchDeleted,
 			"branch_error":   branchErr,
 		}); done {
@@ -100,7 +109,7 @@ Flags:
 			ui.Success.Render("✓"),
 			ui.Path.Render(displayPath(wt.Path)),
 		)
-		if withBranch && wt.Branch != "" {
+		if deleteBranch {
 			if branchDeleted {
 				fmt.Printf("%s Branch deleted: %s\n", ui.Success.Render("✓"), ui.Branch.Render(wt.Branch))
 			} else {
@@ -113,11 +122,11 @@ Flags:
 
 func init() {
 	deleteCmd.Flags().Bool("force", false, "Remove even if the worktree is dirty (also skips confirmation)")
-	deleteCmd.Flags().Bool("with-branch", false, "Also delete the local branch the worktree pointed to")
+	deleteCmd.Flags().Bool("without-branch", false, "Keep the local branch the worktree pointed to")
 	rootCmd.AddCommand(deleteCmd)
 }
 
-func confirmDelete(w *worktree.Worktree, withBranch bool) (bool, error) {
+func confirmDelete(w *worktree.Worktree, deleteBranch bool) (bool, error) {
 	if jsonOutput {
 		return true, nil
 	}
@@ -127,7 +136,7 @@ func confirmDelete(w *worktree.Worktree, withBranch bool) (bool, error) {
 		label = filepath.Base(w.Path)
 	}
 	title := fmt.Sprintf("Delete worktree %q at %s?", label, displayPath(w.Path))
-	if withBranch && w.Branch != "" {
+	if deleteBranch {
 		title += fmt.Sprintf(" (branch %q will also be deleted)", w.Branch)
 	}
 
@@ -144,4 +153,18 @@ func confirmDelete(w *worktree.Worktree, withBranch bool) (bool, error) {
 		return false, err
 	}
 	return choice == "yes", nil
+}
+
+func isProtectedMainBranch(repoPath string, list []worktree.Worktree, branch string) bool {
+	if branch == "" {
+		return false
+	}
+	if defaultBranch, err := worktree.DefaultBranch(repoPath); err == nil && defaultBranch != "" {
+		return branch == defaultBranch
+	}
+	if branch == "main" || branch == "master" {
+		return true
+	}
+	// git worktree list reports the main worktree first; use it as a local fallback.
+	return branch == list[0].Branch
 }
