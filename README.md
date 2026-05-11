@@ -61,9 +61,9 @@ ggw delete feature/login --without-branch --force  # keep the branch, skip confi
 Add to your shell config (once):
 
 ```bash
-eval "$(ggw init bash)"   # in ~/.bashrc
-eval "$(ggw init zsh)"    # in ~/.zshrc
-ggw init fish | source    # in ~/.config/fish/config.fish
+eval "$(ggw shell-init bash)"   # in ~/.bashrc
+eval "$(ggw shell-init zsh)"    # in ~/.zshrc
+ggw shell-init fish | source    # in ~/.config/fish/config.fish
 ```
 
 The wrapper intercepts `ggw cd` and turns it into a real `cd`. Every other

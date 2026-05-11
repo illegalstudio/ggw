@@ -9,7 +9,7 @@
 JSON output follows these conventions:
 
 - `list` emits `{ "worktrees": [...] }`.
-- `create`, `cd`, `delete`, and `init` emit a small object describing the action.
+- `create`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
 - `exec` does not support `--json` because it streams another process through stdin, stdout, and stderr.
 
 ## `ggw list`
@@ -101,14 +101,14 @@ ggw --json delete feature/login --force
 
 By default, `ggw delete` removes both the selected worktree and its local branch. The current worktree and the main worktree are protected from deletion.
 
-## `ggw init`
+## `ggw shell-init`
 
 Print shell integration for `bash`, `zsh`, or `fish`.
 
 ```bash
-eval "$(ggw init bash)"
-eval "$(ggw init zsh)"
-ggw init fish | source
+eval "$(ggw shell-init bash)"
+eval "$(ggw shell-init zsh)"
+ggw shell-init fish | source
 ```
 
 The generated script makes `ggw cd` perform a real shell `cd` and installs Cobra-powered tab completion for commands and worktree names.

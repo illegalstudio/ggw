@@ -61,17 +61,17 @@ func generateCompletionScript(shell string) (string, error) {
 	return buf.String(), nil
 }
 
-var initCmd = &cobra.Command{
-	Use:     "init <bash|zsh|fish>",
+var shellInitCmd = &cobra.Command{
+	Use:     "shell-init <bash|zsh|fish>",
 	Short:   "Print shell integration script (eval to enable `ggw cd` and completions)",
 	GroupID: GroupShell,
 	Long: `Print a shell function that makes "ggw cd" actually change directory,
 plus tab-completion for ggw commands and worktree names.
 
 Add to your shell config:
-  bash:  eval "$(ggw init bash)"   (in ~/.bashrc)
-  zsh:   eval "$(ggw init zsh)"    (in ~/.zshrc)
-  fish:  ggw init fish | source    (in ~/.config/fish/config.fish)
+  bash:  eval "$(ggw shell-init bash)"   (in ~/.bashrc)
+  zsh:   eval "$(ggw shell-init zsh)"    (in ~/.zshrc)
+  fish:  ggw shell-init fish | source    (in ~/.config/fish/config.fish)
 
 Then:
   ggw cd <name>      # cd into a worktree (interactive selector if name omitted)
@@ -111,5 +111,5 @@ Then:
 }
 
 func init() {
-	rootCmd.AddCommand(initCmd)
+	rootCmd.AddCommand(shellInitCmd)
 }

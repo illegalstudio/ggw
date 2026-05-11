@@ -14,13 +14,13 @@ import (
 
 var cdCmd = &cobra.Command{
 	Use:               "cd [name]",
-	Short:             "Print the worktree path (chdir requires shell integration — see `ggw init`)",
+	Short:             "Print the worktree path (chdir requires shell integration — see `ggw shell-init`)",
 	GroupID:           GroupWorktree,
 	ValidArgsFunction: worktreeCompletion,
 	Long: `Print the absolute path of a worktree on stdout.
 
 Without shell integration, this just prints — the binary cannot change the
-parent shell's directory. To get an actual chdir, run "ggw init <shell>" once
+parent shell's directory. To get an actual chdir, run "ggw shell-init <shell>" once
 (see its --help) and reload your shell. Then:
 
   ggw cd feature/login   # cd into the matching worktree

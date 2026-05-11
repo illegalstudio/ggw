@@ -53,21 +53,21 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestCLIInitShellIntegration(t *testing.T) {
+func TestCLIShellInitShellIntegration(t *testing.T) {
 	home := setupHome(t)
 	cwd := t.TempDir()
 
-	out, err := runGGW(t, home, cwd, "init", "zsh")
+	out, err := runGGW(t, home, cwd, "shell-init", "zsh")
 	if err != nil {
-		t.Fatalf("ggw init zsh failed: %v\n%s", err, out)
+		t.Fatalf("ggw shell-init zsh failed: %v\n%s", err, out)
 	}
 	if !strings.Contains(out, "ggw()") || !strings.Contains(out, "turn 'ggw cd' into a real chdir") {
-		t.Fatalf("unexpected init output:\n%s", out)
+		t.Fatalf("unexpected shell-init output:\n%s", out)
 	}
 
-	out, err = runGGW(t, home, cwd, "--json", "init", "bash")
+	out, err = runGGW(t, home, cwd, "--json", "shell-init", "bash")
 	if err != nil {
-		t.Fatalf("ggw --json init bash failed: %v\n%s", err, out)
+		t.Fatalf("ggw --json shell-init bash failed: %v\n%s", err, out)
 	}
 
 	var payload struct {
@@ -75,10 +75,10 @@ func TestCLIInitShellIntegration(t *testing.T) {
 		Script string `json:"script"`
 	}
 	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("init JSON is invalid: %v\n%s", err, out)
+		t.Fatalf("shell-init JSON is invalid: %v\n%s", err, out)
 	}
 	if payload.Shell != "bash" || !strings.Contains(payload.Script, "ggw()") {
-		t.Fatalf("unexpected init JSON payload: %+v", payload)
+		t.Fatalf("unexpected shell-init JSON payload: %+v", payload)
 	}
 }
 

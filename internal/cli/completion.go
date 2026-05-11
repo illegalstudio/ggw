@@ -30,8 +30,8 @@ func worktreeCompletion(cmd *cobra.Command, args []string, toComplete string) ([
 	return comps, cobra.ShellCompDirectiveNoFileComp
 }
 
-// deleteCompletion è come worktreeCompletion ma filtra via il main worktree
-// e il worktree corrente per evitare cancellazioni accidentali.
+// deleteCompletion is like worktreeCompletion, but it filters out the main
+// worktree and the current worktree to avoid accidental deletions.
 func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -75,9 +75,8 @@ func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, root, to
 	}
 
 	base := filepath.Base(w.Path)
-	// Non suggerire il basename del main worktree (quello il cui path è la root del repo)
-	// perché è solo il nome della directory del progetto e crea confusione.
-	// L'utente può già riferirsi al main worktree tramite il suo branch name.
+	// Do not suggest the main worktree basename: it is just the project
+	// directory name and the user can already refer to it by branch name.
 	if base == "" || base == w.Branch || w.Path == root {
 		return comps
 	}

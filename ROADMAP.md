@@ -14,7 +14,7 @@
 
 ## Iteration 2: Navigation
 
-- [x] `ggw init zsh|bash|fish`
+- [x] `ggw shell-init zsh|bash|fish`
 - [x] `ggw cd [name]` (prints path; shell wrapper intercepts and chdirs)
 - [x] `huh` selector when `name` is omitted or ambiguous
 - [x] Shell function tested in zsh/bash
