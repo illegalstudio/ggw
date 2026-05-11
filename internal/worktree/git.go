@@ -110,11 +110,8 @@ type CreateOptions struct {
 //   - else if a tracking ref `origin/<branch>` exists → create a tracking branch
 //   - else → create a new branch from opts.From (or HEAD)
 func Create(opts CreateOptions) error {
-	if _, err := os.Stat(opts.DestPath); err == nil {
-		return fmt.Errorf("path already exists: %s", opts.DestPath)
-	}
-	if err := os.MkdirAll(filepath.Dir(opts.DestPath), 0o755); err != nil {
-		return fmt.Errorf("cannot create parent directory: %w", err)
+	if err := prepareDestination(opts.DestPath); err != nil {
+		return err
 	}
 
 	args := []string{"-C", opts.RepoPath, "worktree", "add"}
@@ -136,6 +133,47 @@ func Create(opts CreateOptions) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git worktree add failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// CreateDetached creates a detached worktree at destPath from ref.
+func CreateDetached(repoPath, destPath, ref string) error {
+	if err := prepareDestination(destPath); err != nil {
+		return err
+	}
+	if ref == "" {
+		ref = "HEAD"
+	}
+
+	cmd := exec.Command("git", "-C", repoPath, "worktree", "add", "--detach", destPath, ref)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git worktree add --detach failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// CurrentBranch returns the checked-out branch for repoPath.
+func CurrentBranch(repoPath string) (string, error) {
+	out, err := exec.Command("git", "-C", repoPath, "branch", "--show-current").Output()
+	if err != nil {
+		return "", gitError("git branch --show-current", err)
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "" {
+		return "", fmt.Errorf("worktree at %s is detached", repoPath)
+	}
+	return branch, nil
+}
+
+func prepareDestination(destPath string) error {
+	if _, err := os.Stat(destPath); err == nil {
+		return fmt.Errorf("path already exists: %s", destPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return fmt.Errorf("cannot create parent directory: %w", err)
 	}
 	return nil
 }

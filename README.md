@@ -48,12 +48,17 @@ ggw list --json                       # machine-readable output
 ggw create feature/login              # create worktree at .../<org>/<repo>/feature-login/
                                       # creates the branch from HEAD if it does not exist
 ggw create fix --from main            # create branch from a specific base
+ggw pr 123                            # create a tracked worktree for GitHub PR #123 (requires gh)
 ggw cd feature/login                  # cd into a worktree (needs shell integration, see below)
 ggw cd                                # interactive selector
 ggw exec feature/login -- npm install # run a command inside a worktree
 ggw delete feature/login              # remove a worktree and its branch (prompts to confirm)
 ggw delete feature/login --without-branch --force  # keep the branch, skip confirm
 ```
+
+`ggw pr <id>` uses [GitHub CLI](https://cli.github.com/) to check out the PR
+branch, so the created worktree keeps the tracking configuration that allows
+`git push` when GitHub permits pushing to the PR branch.
 
 ## Shell integration
 

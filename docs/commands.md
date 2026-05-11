@@ -9,7 +9,7 @@
 JSON output follows these conventions:
 
 - `list` emits `{ "worktrees": [...] }`.
-- `create`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
+- `create`, `pr`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
 - `exec` does not support `--json` because it streams another process through stdin, stdout, and stderr.
 
 ## `ggw list`
@@ -48,6 +48,25 @@ Behavior:
 - Otherwise, `ggw` creates a new branch from `--from` or `HEAD`.
 
 The branch name is passed to git unchanged. Only the directory name is slugified, so `feature/login` is stored as `feature-login`.
+
+## `ggw pr`
+
+Create a worktree for a GitHub pull request.
+
+```bash
+ggw pr 123
+ggw --json pr 123
+```
+
+`ggw pr` requires [GitHub CLI](https://cli.github.com/) to be installed and authenticated. If `gh` is not available, the command exits with installation guidance.
+
+Behavior:
+
+- Creates a detached worktree at `.../<org>/<repo>/pr-<id>/`.
+- Runs `gh pr checkout <id>` inside that worktree.
+- Leaves the checkout on the branch selected by `gh`, preserving tracking metadata so `git push` works when GitHub permits pushing to the PR branch.
+
+For PRs from external forks, pushing still depends on GitHub permissions such as maintainer edit access.
 
 ## `ggw cd`
 

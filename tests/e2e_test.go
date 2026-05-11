@@ -163,6 +163,68 @@ func TestCLICreateListCDExecDelete(t *testing.T) {
 	}
 }
 
+func TestCLIPRRequiresGH(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGWWithEnv(t, home, cwd, []string{"PATH=" + t.TempDir()}, "pr", "123")
+	if err == nil {
+		t.Fatalf("ggw pr succeeded without gh:\n%s", out)
+	}
+	if !strings.Contains(out, "gh is required for `ggw pr`") || !strings.Contains(out, "https://cli.github.com/") {
+		t.Fatalf("missing gh error did not explain how to install gh:\n%s", out)
+	}
+}
+
+func TestCLIPRCreatesTrackedWorktreeViaGH(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+	binDir := t.TempDir()
+	ghLog := filepath.Join(binDir, "gh.log")
+	fakeGH := filepath.Join(binDir, "gh")
+	worktreePath := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "pr-123")
+
+	script := fmt.Sprintf(`#!/bin/sh
+printf '%%s\n' "$*" > %q
+if [ "$1" != "pr" ] || [ "$2" != "checkout" ] || [ "$3" != "123" ]; then
+	echo "unexpected gh args: $*" >&2
+	exit 1
+fi
+git checkout -b contributor/feature
+git config branch.contributor/feature.remote fork
+git config branch.contributor/feature.merge refs/heads/contributor/feature
+`, ghLog)
+	if err := os.WriteFile(fakeGH, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	out, err := runGGWWithEnv(t, home, repo, []string{pathEnv}, "pr", "123")
+	if err != nil {
+		t.Fatalf("ggw pr failed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(worktreePath); err != nil {
+		t.Fatalf("PR worktree was not created at %s: %v", worktreePath, err)
+	}
+	if branch := runGit(t, home, worktreePath, "rev-parse", "--abbrev-ref", "HEAD"); branch != "contributor/feature" {
+		t.Fatalf("worktree branch = %q, want contributor/feature", branch)
+	}
+	if remote := runGit(t, home, worktreePath, "config", "branch.contributor/feature.remote"); remote != "fork" {
+		t.Fatalf("branch remote = %q, want fork", remote)
+	}
+	if merge := runGit(t, home, worktreePath, "config", "branch.contributor/feature.merge"); merge != "refs/heads/contributor/feature" {
+		t.Fatalf("branch merge ref = %q, want refs/heads/contributor/feature", merge)
+	}
+
+	logBytes, err := os.ReadFile(ghLog)
+	if err != nil {
+		t.Fatalf("read fake gh log: %v", err)
+	}
+	if strings.TrimSpace(string(logBytes)) != "pr checkout 123" {
+		t.Fatalf("gh invocation = %q, want %q", strings.TrimSpace(string(logBytes)), "pr checkout 123")
+	}
+}
+
 func hasWorktree(entries []struct {
 	Path   string `json:"path"`
 	Branch string `json:"branch"`
@@ -225,10 +287,15 @@ func initGitRepo(t *testing.T, home string) string {
 
 func runGGW(t *testing.T, home, cwd string, args ...string) (string, error) {
 	t.Helper()
+	return runGGWWithEnv(t, home, cwd, nil, args...)
+}
+
+func runGGWWithEnv(t *testing.T, home, cwd string, extraEnv []string, args ...string) (string, error) {
+	t.Helper()
 
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Dir = cwd
-	cmd.Env = childEnv(home)
+	cmd.Env = append(childEnv(home), extraEnv...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
