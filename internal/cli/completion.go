@@ -26,23 +26,7 @@ func worktreeCompletion(cmd *cobra.Command, args []string, toComplete string) ([
 		return nil, cobra.ShellCompDirectiveError
 	}
 
-	var comps []string
-	for _, w := range list {
-		if w.Branch != "" {
-			if toComplete == "" || strings.HasPrefix(strings.ToLower(w.Branch), strings.ToLower(toComplete)) {
-				comps = append(comps, w.Branch)
-			}
-		}
-		base := filepath.Base(w.Path)
-		// Non suggerire il basename del main worktree (quello il cui path è la root del repo)
-		// perché è solo il nome della directory del progetto e crea confusione.
-		// L'utente può già riferirsi al main worktree tramite il suo branch name.
-		if base != "" && base != w.Branch && w.Path != root {
-			if toComplete == "" || strings.HasPrefix(strings.ToLower(base), strings.ToLower(toComplete)) {
-				comps = append(comps, base)
-			}
-		}
-	}
+	comps := worktreeCompletionItems(list, root, toComplete)
 	return comps, cobra.ShellCompDirectiveNoFileComp
 }
 
@@ -72,17 +56,40 @@ func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]s
 		if w.Path == root || w.Path == mainWorktreePath {
 			continue
 		}
-		if w.Branch != "" {
-			if toComplete == "" || strings.HasPrefix(strings.ToLower(w.Branch), strings.ToLower(toComplete)) {
-				comps = append(comps, w.Branch)
-			}
-		}
-		base := filepath.Base(w.Path)
-		if base != "" && base != w.Branch {
-			if toComplete == "" || strings.HasPrefix(strings.ToLower(base), strings.ToLower(toComplete)) {
-				comps = append(comps, base)
-			}
-		}
+		comps = appendWorktreeCompletionItems(comps, w, root, toComplete)
 	}
 	return comps, cobra.ShellCompDirectiveNoFileComp
+}
+
+func worktreeCompletionItems(list []worktree.Worktree, root, toComplete string) []string {
+	var comps []string
+	for _, w := range list {
+		comps = appendWorktreeCompletionItems(comps, w, root, toComplete)
+	}
+	return comps
+}
+
+func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, root, toComplete string) []string {
+	if w.Branch != "" && completionMatches(w.Branch, toComplete) {
+		comps = append(comps, w.Branch)
+	}
+
+	base := filepath.Base(w.Path)
+	// Non suggerire il basename del main worktree (quello il cui path è la root del repo)
+	// perché è solo il nome della directory del progetto e crea confusione.
+	// L'utente può già riferirsi al main worktree tramite il suo branch name.
+	if base == "" || base == w.Branch || w.Path == root {
+		return comps
+	}
+	if w.Branch != "" && base == worktree.SlugifyBranch(w.Branch) {
+		return comps
+	}
+	if completionMatches(base, toComplete) {
+		comps = append(comps, base)
+	}
+	return comps
+}
+
+func completionMatches(candidate, toComplete string) bool {
+	return toComplete == "" || strings.HasPrefix(strings.ToLower(candidate), strings.ToLower(toComplete))
 }
