@@ -1,34 +1,34 @@
 # ggw roadmap
 
-## Iterazione 1: Scaffold + comandi base
+## Iteration 1: Scaffold + basic commands
 
-- [x] Setup `go.mod` e struttura cartelle
-- [x] Cobra root command + sottocomandi stub
-- [x] Logica risoluzione path worktree (`org/repo/slug`)
-- [x] Slugificazione branch name
+- [x] Set up `go.mod` and folder structure
+- [x] Cobra root command + stub subcommands
+- [x] Worktree path resolution logic (`org/repo/slug`)
+- [x] Branch name slugification
 - [x] `ggw list` (+ `--json`)
-- [x] `ggw create <name>` (auto-create branch se non esiste)
-- [x] README minimale
+- [x] `ggw create <name>` (auto-create branch if it doesn't exist)
+- [x] Minimal README
 - [x] Smoke test
-- [x] Test unitari per slugificazione e path resolution
+- [x] Unit tests for slugification and path resolution
 
-## Iterazione 2: Navigazione
+## Iteration 2: Navigation
 
 - [x] `ggw init zsh|bash|fish`
-- [x] `ggw cd [name]` (stampa path; lo shell wrapper intercetta e fa chdir)
-- [x] Selector huh quando `name` è omesso o ambiguo
-- [x] Shell function testata in zsh/bash
+- [x] `ggw cd [name]` (prints path; shell wrapper intercepts and chdirs)
+- [x] `huh` selector when `name` is omitted or ambiguous
+- [x] Shell function tested in zsh/bash
 
-## Iterazione 3: Operazioni
+## Iteration 3: Operations
 
-- [x] `ggw exec [name] -- <cmd>` (propaga exit code, refuses `--json`)
-- [x] `ggw delete [name]` con `--without-branch` e `--force` (huh confirm; `--force` salta conferma)
+- [x] `ggw exec [name] -- <cmd>` (propagates exit code, refuses `--json`)
+- [x] `ggw delete [name]` with `--without-branch` and `--force` (`huh` confirm; `--force` skips confirmation)
 
 ## Backlog / future
 
-- [ ] Config file (TOML) per override path, hooks post-create, ecc.
-- [ ] Hook post-create (es. `npm install` automatico)
+- [ ] Config file (TOML) for path override, post-create hooks, etc.
+- [ ] Post-create hook (e.g. automatic `npm install`)
 - [ ] Tab completion zsh/bash
 - [ ] Goreleaser
 - [ ] Homebrew tap
-- [ ] Fallback configurabile quando manca remote `origin` (oggi: errore esplicito)
+- [ ] Configurable fallback when `origin` remote is missing (today: explicit error)

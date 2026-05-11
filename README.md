@@ -1,5 +1,8 @@
 # ggw
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Follow @nahime0 on X](https://img.shields.io/badge/Follow%20@nahime0-black?logo=x)](https://x.com/nahime0)
+
 Git worktrees, ergonomic. Stores all worktrees of all your repos in a single
 predictable location, derived from the repo's `origin` remote and the branch
 name.
@@ -74,6 +77,10 @@ stdout — useful for `cd "$(ggw cd foo)"` or piping into other tools.
 - [Commands Reference](docs/commands.md)
 - [Shell Integration](docs/shell-integration.md)
 - [Storage Layout](docs/storage.md)
+
+## See also
+
+- [`ggg`](https://github.com/illegalstudio/ggg) — the sister project that inspired `ggw`.
 
 ## Status
 

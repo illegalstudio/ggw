@@ -2,3 +2,11 @@
 .vscode
 /ggw
 /dist/
+.DS_Store
+*.exe
+*.dll
+*.so
+vendor/
+*.test
+*.out
+*.log
