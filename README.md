@@ -33,7 +33,7 @@ Or build from source:
 ```bash
 git clone https://github.com/illegalstudio/ggw.git
 cd ggw
-make build
+make && make install
 ```
 
 ## Usage
@@ -68,6 +68,12 @@ subcommand (`list`, `create`, ...) passes through unchanged.
 
 Without the wrapper, `ggw cd <name>` simply prints the worktree path on
 stdout — useful for `cd "$(ggw cd foo)"` or piping into other tools.
+
+## Docs
+
+- [Commands Reference](docs/commands.md)
+- [Shell Integration](docs/shell-integration.md)
+- [Storage Layout](docs/storage.md)
 
 ## Status
 
