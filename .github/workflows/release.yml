@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   goreleaser:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,6 +20,28 @@ jobs:
         with:
           go-version-file: go.mod
 
+      # Import Apple Developer certificate into a temporary Keychain
+      - name: Import Apple certificate
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
+
+      # Build, sign, archive, publish release, and update Homebrew cask
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
@@ -27,3 +49,49 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+
+      # Notarize macOS archives, then replace them in the release
+      - name: Notarize and update macOS binaries
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          for archive in dist/ggw_*_darwin_*.zip; do
+            echo "Notarizing $archive ..."
+            xcrun notarytool submit "$archive" \
+              --apple-id "$APPLE_ID" \
+              --team-id "$APPLE_TEAM_ID" \
+              --password "$APPLE_APP_PASSWORD" \
+              --wait --timeout 360m
+            echo "Notarized: $archive"
+
+            # Replace the asset in the GitHub release with the notarized one
+            FILENAME="$(basename "$archive")"
+            echo "Replacing $FILENAME in release $TAG ..."
+            gh release delete-asset "$TAG" "$FILENAME" --repo "$GITHUB_REPOSITORY" --yes
+            gh release upload "$TAG" "$archive" --repo "$GITHUB_REPOSITORY"
+          done
+
+          # Update checksums
+          echo "Updating checksums ..."
+          CHECKSUMS="dist/ggw_${TAG#v}_checksums.txt"
+          if [ -f "$CHECKSUMS" ]; then
+            cd dist
+            shasum -a 256 ggw_*.zip ggw_*.tar.gz > "$(basename "$CHECKSUMS")"
+            cd ..
+            CHECKSUMS_NAME="$(basename "$CHECKSUMS")"
+            gh release delete-asset "$TAG" "$CHECKSUMS_NAME" --repo "$GITHUB_REPOSITORY" --yes
+            gh release upload "$TAG" "$CHECKSUMS" --repo "$GITHUB_REPOSITORY"
+          fi
+
+      # Clean up keychain
+      - name: Clean up keychain
+        if: always()
+        run: |
+          KEYCHAIN_PATH="$RUNNER_TEMP/signing.keychain-db"
+          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
