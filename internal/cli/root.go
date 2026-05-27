@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/illegalstudio/ggw/internal/version"
+
 	"github.com/spf13/cobra"
 )
 
@@ -17,6 +19,7 @@ const (
 var rootCmd = &cobra.Command{
 	Use:           "ggw",
 	Short:         "ggw — git worktrees, ergonomic",
+	Version:       version.String(),
 	SilenceErrors: true,
 	Long: `ggw — git worktrees, ergonomic.
 
@@ -29,6 +32,7 @@ Use "ggw <command> --help" for details on any command.`,
 
 func init() {
 	rootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Output in JSON format (suppresses spinners and prompts)")
+	rootCmd.SetVersionTemplate("{{.Version}}\n")
 }
 
 // Execute is the entry point invoked from cmd/ggw/main.go.
