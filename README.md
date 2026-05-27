@@ -27,11 +27,19 @@ Only the directory name is slugified.
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install illegalstudio/tap/ggw
+```
+
+### Go
+
 ```bash
 go install github.com/illegalstudio/ggw/cmd/ggw@latest
 ```
 
-Or build from source:
+### From source
 
 ```bash
 git clone https://github.com/illegalstudio/ggw.git
@@ -54,6 +62,9 @@ ggw cd                                # interactive selector
 ggw exec feature/login -- npm install # run a command inside a worktree
 ggw delete feature/login              # remove a worktree and its branch (prompts to confirm)
 ggw delete feature/login --without-branch --force  # keep the branch, skip confirm
+
+# Print the installed version
+ggw --version
 ```
 
 `ggw pr <id>` uses [GitHub CLI](https://cli.github.com/) to check out the PR
