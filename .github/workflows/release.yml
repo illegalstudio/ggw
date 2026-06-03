@@ -41,14 +41,13 @@ jobs:
             -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain
 
-      # Build, sign, archive, publish release, and update Homebrew cask
+      # Build, sign, archive, and publish the GitHub release
       - uses: goreleaser/goreleaser-action@v6
         with:
           version: "~> v2"
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
 
       # Notarize macOS archives, then replace them in the release
@@ -88,6 +87,74 @@ jobs:
             gh release delete-asset "$TAG" "$CHECKSUMS_NAME" --repo "$GITHUB_REPOSITORY" --yes
             gh release upload "$TAG" "$CHECKSUMS" --repo "$GITHUB_REPOSITORY"
           fi
+
+      # Generate the Homebrew formula and push it to the tap repository.
+      # Runs after notarization so the sha256 values match the final archives.
+      - name: Update Homebrew formula
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          VERSION="${TAG#v}"
+
+          sha() { shasum -a 256 "dist/$1" | awk '{print $1}'; }
+
+          DARWIN_ARM64_SHA="$(sha "ggw_${VERSION}_darwin_arm64.zip")"
+          DARWIN_AMD64_SHA="$(sha "ggw_${VERSION}_darwin_amd64.zip")"
+          LINUX_ARM64_SHA="$(sha "ggw_${VERSION}_linux_arm64.tar.gz")"
+          LINUX_AMD64_SHA="$(sha "ggw_${VERSION}_linux_amd64.tar.gz")"
+
+          BASE_URL="https://github.com/illegalstudio/ggw/releases/download/${TAG}"
+
+          TAP_DIR="$RUNNER_TEMP/homebrew-tap"
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/illegalstudio/homebrew-tap.git" "$TAP_DIR"
+
+          mkdir -p "$TAP_DIR/Formula"
+          cat > "$TAP_DIR/Formula/ggw.rb" <<EOF
+          class Ggw < Formula
+            desc "Git worktrees, ergonomic — store all worktrees of all your repos in a predictable location"
+            homepage "https://github.com/illegalstudio/ggw"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              on_arm do
+                url "${BASE_URL}/ggw_${VERSION}_darwin_arm64.zip"
+                sha256 "${DARWIN_ARM64_SHA}"
+              end
+              on_intel do
+                url "${BASE_URL}/ggw_${VERSION}_darwin_amd64.zip"
+                sha256 "${DARWIN_AMD64_SHA}"
+              end
+            end
+
+            on_linux do
+              on_arm do
+                url "${BASE_URL}/ggw_${VERSION}_linux_arm64.tar.gz"
+                sha256 "${LINUX_ARM64_SHA}"
+              end
+              on_intel do
+                url "${BASE_URL}/ggw_${VERSION}_linux_amd64.tar.gz"
+                sha256 "${LINUX_AMD64_SHA}"
+              end
+            end
+
+            def install
+              bin.install "ggw"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/ggw --version")
+            end
+          end
+          EOF
+
+          cd "$TAP_DIR"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/ggw.rb
+          git commit -m "brew formula ggw ${TAG}"
+          git push
 
       # Clean up keychain
       - name: Clean up keychain
