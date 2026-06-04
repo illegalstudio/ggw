@@ -86,14 +86,17 @@ func isExternalPath(p, mainPath string) bool {
 		return false
 	}
 	resolveWorktreesBase()
-	if wtBaseReady {
-		for _, b := range [...]string{wtBaseRaw, wtBaseReal} {
-			if b == "" {
-				continue
-			}
-			if strings.HasPrefix(p, b+string(os.PathSeparator)) {
-				return false
-			}
+	if !wtBaseReady {
+		// Base unknown: we cannot prove the worktree is external, so don't
+		// tag it as such.
+		return false
+	}
+	for _, b := range [...]string{wtBaseRaw, wtBaseReal} {
+		if b == "" {
+			continue
+		}
+		if strings.HasPrefix(p, b+string(os.PathSeparator)) {
+			return false
 		}
 	}
 	return true

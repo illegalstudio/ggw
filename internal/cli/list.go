@@ -49,7 +49,10 @@ var listCmd = &cobra.Command{
 		}
 
 		handles := worktree.Handles(raw)
-		mainPath := raw[0].Path
+		mainPath := ""
+		if len(raw) > 0 {
+			mainPath = raw[0].Path
+		}
 
 		entries := make([]listEntry, len(raw))
 		for i, w := range raw {
