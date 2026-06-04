@@ -23,6 +23,7 @@ type listEntry struct {
 	Behind      int    `json:"behind"`
 	HasUpstream bool   `json:"has_upstream"`
 	StatusError string `json:"status_error,omitempty"`
+	External    bool   `json:"external"`
 }
 
 var listCmd = &cobra.Command{
@@ -47,6 +48,9 @@ var listCmd = &cobra.Command{
 			return err
 		}
 
+		handles := worktree.Handles(raw)
+		mainPath := raw[0].Path
+
 		entries := make([]listEntry, len(raw))
 		for i, w := range raw {
 			entries[i] = listEntry{
@@ -56,6 +60,7 @@ var listCmd = &cobra.Command{
 				Detached: w.Detached,
 				Locked:   w.Locked,
 				Bare:     w.Bare,
+				External: isExternalPath(w.Path, mainPath),
 			}
 			if w.Bare {
 				continue
@@ -82,8 +87,8 @@ var listCmd = &cobra.Command{
 
 		labels := make([]string, len(entries))
 		maxLabel := 0
-		for i, e := range entries {
-			labels[i] = labelFor(e)
+		for i := range entries {
+			labels[i] = labelFor(entries[i], handles[i])
 			if l := len(labels[i]); l > maxLabel {
 				maxLabel = l
 			}
@@ -94,9 +99,19 @@ var listCmd = &cobra.Command{
 		for i, e := range entries {
 			pad := strings.Repeat(" ", maxLabel-len(labels[i]))
 			suffix := statusSuffix(e)
-			lockTag := ""
+			tags := ""
+			if e.Branch == "" {
+				kind := "(detached)"
+				if e.Bare {
+					kind = "(bare)"
+				}
+				tags += " " + ui.Muted.Render(kind)
+			}
+			if e.External {
+				tags += " " + ui.Muted.Render("[external]")
+			}
 			if e.Locked {
-				lockTag = " " + ui.Muted.Render("[locked]")
+				tags += " " + ui.Muted.Render("[locked]")
 			}
 			fmt.Printf("  %s %s%s → %s%s%s\n",
 				ui.Success.Render("●"),
@@ -104,7 +119,7 @@ var listCmd = &cobra.Command{
 				pad,
 				ui.Path.Render(renderPath(e.Path, fullPath)),
 				suffix,
-				lockTag,
+				tags,
 			)
 		}
 		fmt.Println()
@@ -124,17 +139,11 @@ func renderPath(p string, full bool) string {
 	return compactPath(p)
 }
 
-func labelFor(e listEntry) string {
+func labelFor(e listEntry, handle string) string {
 	if e.Branch != "" {
 		return e.Branch
 	}
-	if e.Detached {
-		return "(detached)"
-	}
-	if e.Bare {
-		return "(bare)"
-	}
-	return "(unknown)"
+	return handle
 }
 
 func statusSuffix(e listEntry) string {
