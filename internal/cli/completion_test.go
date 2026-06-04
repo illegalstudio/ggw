@@ -49,4 +49,14 @@ func TestResolveOneWorktreeMatchesHandleNotMain(t *testing.T) {
 	if got.Path != "/home/u/.codex/worktrees/0e21/elephc" {
 		t.Fatalf("resolved to %q, want the detached worktree", got.Path)
 	}
+
+	// The bare basename "elephc" is ambiguous: it must fall through to the
+	// basename match and resolve to the main worktree, not the detached one.
+	gotMain, err := resolveOneWorktree(list, "elephc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotMain.Path != "/Volumes/x/elephc" {
+		t.Fatalf("query %q resolved to %q, want the main worktree", "elephc", gotMain.Path)
+	}
 }

@@ -26,8 +26,10 @@ parent shell's directory. To get an actual chdir, run "ggw shell-init <shell>" o
   ggw cd feature/login   # cd into the matching worktree
   ggw cd                 # interactive selector
 
-Matching: exact branch → exact directory slug → substring on branch or path.
-Multiple matches drop into an interactive selector.`,
+Matching: exact branch → exact path → handle → basename → substring on branch or path.
+Multiple matches drop into an interactive selector.
+
+Detached or external worktrees can be addressed by their handle, e.g. "ggw cd 0e21/elephc".`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cwd, err := os.Getwd()
@@ -73,20 +75,21 @@ func init() {
 }
 
 // resolveOneWorktree picks a worktree from list. Empty query opens an
-// interactive selector. Otherwise: exact branch → exact slug → substring;
+// interactive selector. Otherwise: Matching priority: exact branch/path → handle → basename → substring;
 // multiple substring matches open a selector.
 func resolveOneWorktree(list []worktree.Worktree, query string) (*worktree.Worktree, error) {
 	if query == "" {
 		return selectWorktree(list, "Select a worktree")
 	}
 
-	handles := worktree.Handles(list)
-
 	for i, w := range list {
 		if w.Branch == query || w.Path == query {
 			return &list[i], nil
 		}
 	}
+
+	handles := worktree.Handles(list)
+
 	for i := range list {
 		if handles[i] == query {
 			return &list[i], nil
@@ -113,6 +116,7 @@ func resolveOneWorktree(list []worktree.Worktree, query string) (*worktree.Workt
 		return &list[matches[0]], nil
 	}
 
+	// selectWorktree recomputes handles within this subset; they stay unambiguous among the shown choices.
 	subset := make([]worktree.Worktree, len(matches))
 	for i, idx := range matches {
 		subset[i] = list[idx]
