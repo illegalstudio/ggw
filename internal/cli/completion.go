@@ -51,26 +51,38 @@ func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]s
 	}
 	mainWorktreePath := list[0].Path
 
+	handles := worktree.Handles(list)
 	var comps []string
-	for _, w := range list {
+	for i, w := range list {
 		if w.Path == root || w.Path == mainWorktreePath {
 			continue
 		}
-		comps = appendWorktreeCompletionItems(comps, w, root, toComplete)
+		comps = appendWorktreeCompletionItems(comps, w, handles[i], root, toComplete)
 	}
 	return comps, cobra.ShellCompDirectiveNoFileComp
 }
 
 func worktreeCompletionItems(list []worktree.Worktree, root, toComplete string) []string {
+	handles := worktree.Handles(list)
 	var comps []string
-	for _, w := range list {
-		comps = appendWorktreeCompletionItems(comps, w, root, toComplete)
+	for i, w := range list {
+		comps = appendWorktreeCompletionItems(comps, w, handles[i], root, toComplete)
 	}
 	return comps
 }
 
-func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, root, toComplete string) []string {
-	if w.Branch != "" && completionMatches(w.Branch, toComplete) {
+func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, handle, root, toComplete string) []string {
+	if w.Branch == "" {
+		// Branchless (detached/bare): the only stable, unambiguous token is
+		// the computed handle (e.g. "0e21/elephc"). The bare basename may
+		// collide with the main worktree, so we never suggest it.
+		if w.Path != root && completionMatches(handle, toComplete) {
+			comps = append(comps, handle)
+		}
+		return comps
+	}
+
+	if completionMatches(w.Branch, toComplete) {
 		comps = append(comps, w.Branch)
 	}
 
@@ -80,7 +92,7 @@ func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, root, to
 	if base == "" || base == w.Branch || w.Path == root {
 		return comps
 	}
-	if w.Branch != "" && base == worktree.SlugifyBranch(w.Branch) {
+	if base == worktree.SlugifyBranch(w.Branch) {
 		return comps
 	}
 	if completionMatches(base, toComplete) {

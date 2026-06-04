@@ -78,6 +78,30 @@ func displayPath(p string) string {
 	return p
 }
 
+// isExternalPath reports whether a worktree was created outside ggw: it is
+// neither the main worktree nor located under the ggw-managed worktrees base.
+// Used to tag such worktrees (e.g. a Codex `--detach` worktree) as [external].
+func isExternalPath(p, mainPath string) bool {
+	if p == mainPath {
+		return false
+	}
+	resolveWorktreesBase()
+	if !wtBaseReady {
+		// Base unknown: we cannot prove the worktree is external, so don't
+		// tag it as such.
+		return false
+	}
+	for _, b := range [...]string{wtBaseRaw, wtBaseReal} {
+		if b == "" {
+			continue
+		}
+		if strings.HasPrefix(p, b+string(os.PathSeparator)) {
+			return false
+		}
+	}
+	return true
+}
+
 // compactPath is a stronger version of displayPath used by `ggw list` only:
 // for paths under the ggw worktrees base, the entire shared prefix becomes
 // "[...]"; everything else falls back to tildification.

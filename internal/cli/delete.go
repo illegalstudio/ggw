@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/illegalstudio/ggw/internal/ui"
 	"github.com/illegalstudio/ggw/internal/worktree"
@@ -66,8 +65,17 @@ Flags:
 
 		deleteBranch := !withoutBranch && wt.Branch != "" && !isProtectedMainBranch(root, list, wt.Branch)
 
+		handles := worktree.Handles(list)
+		wtHandle := ""
+		for i := range list {
+			if list[i].Path == wt.Path {
+				wtHandle = handles[i]
+				break
+			}
+		}
+
 		if !force {
-			ok, err := confirmDelete(wt, deleteBranch)
+			ok, err := confirmDelete(wt, wtHandle, deleteBranch)
 			if err != nil {
 				return err
 			}
@@ -126,14 +134,14 @@ func init() {
 	rootCmd.AddCommand(deleteCmd)
 }
 
-func confirmDelete(w *worktree.Worktree, deleteBranch bool) (bool, error) {
+func confirmDelete(w *worktree.Worktree, handle string, deleteBranch bool) (bool, error) {
 	if jsonOutput {
 		return true, nil
 	}
 
 	label := w.Branch
 	if label == "" {
-		label = filepath.Base(w.Path)
+		label = handle
 	}
 	title := fmt.Sprintf("Delete worktree %q at %s?", label, displayPath(w.Path))
 	if deleteBranch {
