@@ -51,6 +51,19 @@ func TestHandles(t *testing.T) {
 			},
 			want: []string{"elephc", "0e21/elephc"},
 		},
+		{
+			name: "bare worktree falls back to a path-based handle",
+			list: []Worktree{
+				{Path: "/srv/project", Branch: "main"},
+				{Path: "/srv/project/.bare", Bare: true},
+			},
+			want: []string{"main", ".bare"},
+		},
+		{
+			name: "empty list returns empty handles",
+			list: []Worktree{},
+			want: []string{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

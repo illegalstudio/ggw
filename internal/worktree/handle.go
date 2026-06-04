@@ -36,6 +36,9 @@ func Handles(list []Worktree) []string {
 // (compared at the same depth) and is not a reserved branch name.
 func uniquePathSuffix(list []Worktree, i int, reserved map[string]bool) string {
 	segs := pathSegments(list[i].Path)
+	if len(segs) == 0 {
+		return "(unknown)"
+	}
 	for k := 1; k <= len(segs); k++ {
 		cand := lastSegments(segs, k)
 		if reserved[cand] {
