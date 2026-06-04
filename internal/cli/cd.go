@@ -80,8 +80,15 @@ func resolveOneWorktree(list []worktree.Worktree, query string) (*worktree.Workt
 		return selectWorktree(list, "Select a worktree")
 	}
 
+	handles := worktree.Handles(list)
+
 	for i, w := range list {
 		if w.Branch == query || w.Path == query {
+			return &list[i], nil
+		}
+	}
+	for i := range list {
+		if handles[i] == query {
 			return &list[i], nil
 		}
 	}
@@ -118,19 +125,10 @@ func selectWorktree(list []worktree.Worktree, title string) (*worktree.Worktree,
 		return nil, fmt.Errorf("%s: refusing interactive prompt in --json mode (be more specific)", title)
 	}
 
+	handles := worktree.Handles(list)
 	options := make([]huh.Option[int], len(list))
 	for i, w := range list {
-		label := w.Branch
-		if label == "" {
-			if w.Detached {
-				label = "(detached)"
-			} else if w.Bare {
-				label = "(bare)"
-			} else {
-				label = filepath.Base(w.Path)
-			}
-		}
-		options[i] = huh.NewOption(fmt.Sprintf("%s → %s", label, displayPath(w.Path)), i)
+		options[i] = huh.NewOption(fmt.Sprintf("%s → %s", handles[i], displayPath(w.Path)), i)
 	}
 
 	var idx int
