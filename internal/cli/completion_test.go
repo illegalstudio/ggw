@@ -36,6 +36,21 @@ func TestWorktreeCompletionItemsKeepsCustomBasename(t *testing.T) {
 	}
 }
 
+func TestWorktreeCompletionItemsSuggestsHandleForDetached(t *testing.T) {
+	root := "/Volumes/x/elephc"
+	list := []worktree.Worktree{
+		{Path: root, Branch: "main"},
+		{Path: "/home/u/.codex/worktrees/0e21/elephc", Detached: true},
+	}
+
+	got := worktreeCompletionItems(list, root, "")
+	want := []string{"main", "0e21/elephc"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestResolveOneWorktreeMatchesHandleNotMain(t *testing.T) {
 	list := []worktree.Worktree{
 		{Path: "/Volumes/x/elephc", Branch: "main"},
