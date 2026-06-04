@@ -344,3 +344,78 @@ func childEnv(home string) []string {
 		"NO_COLOR=1",
 	)
 }
+
+func TestCLIExternalDetachedWorktree(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	// A detached worktree created outside ggw's base (e.g. by another tool),
+	// whose leaf "api" collides with the repo basename so the handle must
+	// grow to "0e21/api".
+	extPath := filepath.Join(home, "external", "0e21", "api")
+	if err := os.MkdirAll(filepath.Dir(extPath), 0755); err != nil {
+		t.Fatalf("create external parent dir: %v", err)
+	}
+	runGit(t, home, repo, "worktree", "add", "--detach", extPath)
+	canonicalExt := canonicalPath(t, extPath)
+
+	// list: shows the handle and the [external] tag.
+	out, err := runGGW(t, home, repo, "list")
+	if err != nil {
+		t.Fatalf("ggw list failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "0e21/api") || !strings.Contains(out, "[external]") {
+		t.Fatalf("list output missing handle or external tag:\n%s", out)
+	}
+
+	// list --json: external flag is set for the detached worktree.
+	out, err = runGGW(t, home, repo, "--json", "list")
+	if err != nil {
+		t.Fatalf("ggw --json list failed: %v\n%s", err, out)
+	}
+	var listPayload struct {
+		Worktrees []struct {
+			Path     string `json:"path"`
+			External bool   `json:"external"`
+		} `json:"worktrees"`
+	}
+	if err := json.Unmarshal([]byte(out), &listPayload); err != nil {
+		t.Fatalf("list JSON is invalid: %v\n%s", err, out)
+	}
+	foundExternal := false
+	for _, w := range listPayload.Worktrees {
+		if w.Path == canonicalExt {
+			foundExternal = w.External
+		}
+	}
+	if !foundExternal {
+		t.Fatalf("external worktree not flagged in JSON: %+v", listPayload.Worktrees)
+	}
+
+	// completion: offers the handle, never the ambiguous bare basename.
+	out, err = runGGW(t, home, repo, "__complete", "delete", "")
+	if err != nil {
+		t.Fatalf("ggw delete completion failed: %v\n%s", err, out)
+	}
+	if !strings.Contains(out, "0e21/api") {
+		t.Fatalf("completion missing handle:\n%s", out)
+	}
+
+	// cd: resolves the handle to the external worktree path.
+	out, err = runGGW(t, home, repo, "cd", "0e21/api")
+	if err != nil {
+		t.Fatalf("ggw cd failed: %v\n%s", err, out)
+	}
+	if strings.TrimSpace(out) != canonicalExt {
+		t.Fatalf("cd output = %q, want %q", strings.TrimSpace(out), canonicalExt)
+	}
+
+	// delete: removes the external worktree by handle.
+	out, err = runGGW(t, home, repo, "delete", "--force", "0e21/api")
+	if err != nil {
+		t.Fatalf("ggw delete failed: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(extPath); !os.IsNotExist(err) {
+		t.Fatalf("external worktree still exists after delete, stat err: %v", err)
+	}
+}
