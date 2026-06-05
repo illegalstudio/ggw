@@ -3,6 +3,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Follow @nahime0 on X](https://img.shields.io/badge/Follow%20@nahime0-black?logo=x)](https://x.com/nahime0)
 
+![ggw demo: list, create and cd](demo/list-create-cd.gif)
+
 Git worktrees, ergonomic. Stores all worktrees of all your repos in a single
 predictable location, derived from the repo's `origin` remote and the branch
 name.
