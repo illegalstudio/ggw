@@ -14,6 +14,7 @@ import (
 const (
 	GroupWorktree = "worktree"
 	GroupShell    = "shell"
+	GroupConfig   = "config"
 )
 
 var rootCmd = &cobra.Command{
@@ -42,6 +43,7 @@ func Execute() {
 	rootCmd.AddGroup(
 		&cobra.Group{ID: GroupWorktree, Title: "Worktree Operations:"},
 		&cobra.Group{ID: GroupShell, Title: "Shell Integration:"},
+		&cobra.Group{ID: GroupConfig, Title: "Configuration:"},
 	)
 	rootCmd.SetHelpCommandGroupID(GroupShell)
 	rootCmd.SetCompletionCommandGroupID(GroupShell)

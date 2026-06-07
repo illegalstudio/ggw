@@ -1,6 +1,7 @@
 package worktree
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 )
@@ -69,6 +70,7 @@ func TestSlugifyBranch(t *testing.T) {
 }
 
 func TestWorktreePathHonorsXDG(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
 	got, err := WorktreePath("acme", "api", "feature-login")
 	if err != nil {
@@ -103,5 +105,45 @@ func TestWorktreePathRejectsEmptyComponents(t *testing.T) {
 	}
 	if _, err := WorktreePath("acme", "api", ""); err == nil {
 		t.Fatal("expected error for empty slug")
+	}
+}
+
+func TestWorktreePathConfigBaseDirWinsOverXDG(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
+
+	cfgDir := filepath.Join(home, ".config", "ggw")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	custom := filepath.Join(home, "my-worktrees")
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"),
+		[]byte("base_dir: "+custom+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := WorktreePath("acme", "api", "feature-login")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := filepath.Join(custom, "acme", "api", "feature-login")
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+func TestWorktreePathNoConfigFallsBackToXDG(t *testing.T) {
+	home := t.TempDir() // clean home: no config file
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
+
+	got, err := WorktreePath("acme", "api", "x")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := filepath.Join("/tmp/xdg", "worktrees", "acme", "api", "x")
+	if got != want {
+		t.Fatalf("got %q, want %q", got, want)
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/illegalstudio/ggw/internal/config"
 )
 
 // OriginOrgRepo returns the (org, repo) pair derived from the `origin` remote
@@ -96,8 +98,17 @@ func SlugifyBranch(branch string) string {
 }
 
 // WorktreesBase returns the directory under which all ggw-managed worktrees
-// live: $XDG_DATA_HOME/worktrees, or ~/.local/share/worktrees as a fallback.
+// live. A base_dir set in ~/.config/ggw/config.yaml wins; otherwise
+// $XDG_DATA_HOME/worktrees, or ~/.local/share/worktrees as a fallback.
 func WorktreesBase() (string, error) {
+	if dir, ok, err := config.BaseDir(); err != nil {
+		return "", err
+	} else if ok {
+		// Config wins: the configured directory is the worktrees base, used
+		// directly (no /worktrees suffix — that belongs to the default only).
+		return dir, nil
+	}
+
 	base := os.Getenv("XDG_DATA_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()

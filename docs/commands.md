@@ -131,3 +131,21 @@ ggw shell-init fish | source
 ```
 
 The generated script makes `ggw cd` perform a real shell `cd` and installs Cobra-powered tab completion for commands and worktree names.
+
+## `ggw init`
+
+Create the global config file (`~/.config/ggw/config.yaml`), seeded with this
+system's current default worktrees directory.
+
+```bash
+ggw init
+ggw --json init
+```
+
+Behavior:
+
+- Fails if the config file already exists.
+- The seeded `base_dir` is the path ggw would use right now, so the file is
+  behavior-preserving until edited.
+
+See [Configuration](configuration.md) for the file format and precedence.

@@ -345,6 +345,115 @@ func childEnv(home string) []string {
 	)
 }
 
+func TestCLIInitCreatesConfig(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGW(t, home, cwd, "init")
+	if err != nil {
+		t.Fatalf("ggw init failed: %v\n%s", err, out)
+	}
+
+	cfgPath := filepath.Join(home, ".config", "ggw", "config.yaml")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf("config not created: %v", err)
+	}
+	// childEnv sets XDG_DATA_HOME=$home/.local/share, so the seeded default,
+	// with $HOME collapsed to ~, is ~/.local/share/worktrees.
+	if !strings.Contains(string(data), "base_dir: ~/.local/share/worktrees") {
+		t.Fatalf("unexpected config contents:\n%s", data)
+	}
+
+	// Running again must fail because the file already exists.
+	out, err = runGGW(t, home, cwd, "init")
+	if err == nil {
+		t.Fatalf("expected ggw init to fail when config exists; output:\n%s", out)
+	}
+	if !strings.Contains(out, "already exists") {
+		t.Fatalf("unexpected error output:\n%s", out)
+	}
+}
+
+func TestCLIInitJSON(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGW(t, home, cwd, "--json", "init")
+	if err != nil {
+		t.Fatalf("ggw --json init failed: %v\n%s", err, out)
+	}
+	var payload struct {
+		Created bool   `json:"created"`
+		Path    string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("init JSON invalid: %v\n%s", err, out)
+	}
+	if !payload.Created || !strings.HasSuffix(payload.Path, filepath.Join(".config", "ggw", "config.yaml")) {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+}
+
+func TestCLICreateHonorsConfigBaseDir(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	// Configure a custom base dir. childEnv also sets XDG_DATA_HOME, so this
+	// asserts config wins over XDG.
+	base := filepath.Join(home, "custom-worktrees")
+	cfgDir := filepath.Join(home, ".config", "ggw")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"),
+		[]byte("base_dir: "+base+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runGGW(t, home, repo, "create", "feature/login")
+	if err != nil {
+		t.Fatalf("ggw create failed: %v\n%s", err, out)
+	}
+	want := filepath.Join(base, "acme", "api", "feature-login")
+	if _, err := os.Stat(filepath.Join(want, ".git")); err != nil {
+		t.Fatalf("worktree not created at %s: %v\noutput:\n%s", want, err, out)
+	}
+
+	// ggw list must treat the configured-base_dir worktree as internal,
+	// not [external] — both create and list route through WorktreesBase.
+	out, err = runGGW(t, home, repo, "--json", "list")
+	if err != nil {
+		t.Fatalf("ggw --json list failed: %v\n%s", err, out)
+	}
+	var listed struct {
+		Worktrees []struct {
+			Path     string `json:"path"`
+			Branch   string `json:"branch"`
+			External bool   `json:"external"`
+		} `json:"worktrees"`
+	}
+	if err := json.Unmarshal([]byte(out), &listed); err != nil {
+		t.Fatalf("list JSON invalid: %v\n%s", err, out)
+	}
+	canonicalWant := canonicalPath(t, want)
+	var found bool
+	for _, w := range listed.Worktrees {
+		if w.Branch == "feature/login" {
+			found = true
+			if w.External {
+				t.Fatalf("worktree under configured base_dir wrongly tagged external: %+v", w)
+			}
+			if w.Path != canonicalWant {
+				t.Fatalf("listed path = %q, want %q", w.Path, canonicalWant)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("feature/login worktree not found in list output:\n%s", out)
+	}
+}
+
 func TestCLIExternalDetachedWorktree(t *testing.T) {
 	home := setupHome(t)
 	repo := initGitRepo(t, home)

@@ -90,9 +90,31 @@ subcommand (`list`, `create`, ...) passes through unchanged.
 Without the wrapper, `ggw cd <name>` simply prints the worktree path on
 stdout — useful for `cd "$(ggw cd foo)"` or piping into other tools.
 
+## Configuration
+
+By default ggw derives the worktrees base directory from the environment
+(`$XDG_DATA_HOME/worktrees`, or `~/.local/share/worktrees`). To store worktrees
+somewhere else, create a config file:
+
+```bash
+ggw init   # writes ~/.config/ggw/config.yaml, seeded with the current default
+```
+
+Then edit `base_dir`:
+
+```yaml
+# ~/.config/ggw/config.yaml
+base_dir: ~/Worktrees
+```
+
+With this, a worktree for `acme/api` on branch `feature/login` lives at
+`~/Worktrees/acme/api/feature-login/`. A `base_dir` set here **overrides**
+`XDG_DATA_HOME`. A leading `~` is expanded to your home directory.
+
 ## Docs
 
 - [Commands Reference](docs/commands.md)
+- [Configuration](docs/configuration.md)
 - [Shell Integration](docs/shell-integration.md)
 - [Storage Layout](docs/storage.md)
 
