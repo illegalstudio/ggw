@@ -101,3 +101,29 @@ func TestBaseDirErrorsOnMalformedYAML(t *testing.T) {
 		t.Fatal("expected error for malformed YAML")
 	}
 }
+
+func TestLoadAbsoluteBaseDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeConfig(t, home, "base_dir: /data/wt\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BaseDir != "/data/wt" {
+		t.Fatalf("got %q, want %q", cfg.BaseDir, "/data/wt")
+	}
+}
+
+func TestLoadTildeAloneExpandsToHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeConfig(t, home, "base_dir: \"~\"\n")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.BaseDir != home {
+		t.Fatalf("got %q, want %q", cfg.BaseDir, home)
+	}
+}

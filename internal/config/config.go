@@ -38,14 +38,13 @@ func Load() (*Config, error) {
 	}
 	if _, err := os.Stat(path); err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, fmt.Errorf("config file %s: %w", path, fs.ErrNotExist)
+			return nil, fmt.Errorf("config file %s: %w", path, err)
 		}
 		return nil, fmt.Errorf("cannot stat config file: %w", err)
 	}
 
 	v := viper.New()
 	v.SetConfigFile(path)
-	v.SetConfigType("yaml")
 	if err := v.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("cannot read config file: %w", err)
 	}
@@ -81,6 +80,7 @@ func BaseDir() (string, bool, error) {
 }
 
 // expandTilde expands a leading ~ or ~/ in p to the user's home directory.
+// All other paths (absolute or relative) are returned unchanged.
 func expandTilde(p string) (string, error) {
 	if p != "~" && !strings.HasPrefix(p, "~/") {
 		return p, nil
