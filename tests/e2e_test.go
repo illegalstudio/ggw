@@ -419,6 +419,39 @@ func TestCLICreateHonorsConfigBaseDir(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(want, ".git")); err != nil {
 		t.Fatalf("worktree not created at %s: %v\noutput:\n%s", want, err, out)
 	}
+
+	// ggw list must treat the configured-base_dir worktree as internal,
+	// not [external] — both create and list route through WorktreesBase.
+	out, err = runGGW(t, home, repo, "--json", "list")
+	if err != nil {
+		t.Fatalf("ggw --json list failed: %v\n%s", err, out)
+	}
+	var listed struct {
+		Worktrees []struct {
+			Path     string `json:"path"`
+			Branch   string `json:"branch"`
+			External bool   `json:"external"`
+		} `json:"worktrees"`
+	}
+	if err := json.Unmarshal([]byte(out), &listed); err != nil {
+		t.Fatalf("list JSON invalid: %v\n%s", err, out)
+	}
+	canonicalWant := canonicalPath(t, want)
+	var found bool
+	for _, w := range listed.Worktrees {
+		if w.Branch == "feature/login" {
+			found = true
+			if w.External {
+				t.Fatalf("worktree under configured base_dir wrongly tagged external: %+v", w)
+			}
+			if w.Path != canonicalWant {
+				t.Fatalf("listed path = %q, want %q", w.Path, canonicalWant)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("feature/login worktree not found in list output:\n%s", out)
+	}
 }
 
 func TestCLIExternalDetachedWorktree(t *testing.T) {

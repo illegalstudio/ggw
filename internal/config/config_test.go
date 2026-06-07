@@ -128,6 +128,15 @@ func TestLoadTildeAloneExpandsToHome(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsRelativeBaseDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	writeConfig(t, home, "base_dir: rel/path\n")
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for relative base_dir")
+	}
+}
+
 func TestWriteDefaultCreatesSeededReloadableFile(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -58,6 +58,9 @@ func Load() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	if expanded != "" && !filepath.IsAbs(expanded) {
+		return nil, fmt.Errorf("base_dir must be an absolute path or start with ~, got %q", cfg.BaseDir)
+	}
 	cfg.BaseDir = expanded
 	return &cfg, nil
 }
