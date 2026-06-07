@@ -79,6 +79,23 @@ func BaseDir() (string, bool, error) {
 	return cfg.BaseDir, true, nil
 }
 
+// WriteDefault writes a commented config template to path, seeding base_dir with
+// seedBaseDir. It creates the parent directory (~/.config/ggw) as needed. It does
+// not check for an existing file — callers must guard against overwriting.
+func WriteDefault(path, seedBaseDir string) error {
+	content := fmt.Sprintf(`# GGW configuration
+#
+# base_dir: directory under which all worktrees live, nested as
+# <base_dir>/<org>/<repo>/<branch-slug>. A leading ~ is expanded to $HOME.
+base_dir: %s
+`, seedBaseDir)
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("cannot create config directory: %w", err)
+	}
+	return os.WriteFile(path, []byte(content), 0o644)
+}
+
 // expandTilde expands a leading ~ or ~/ in p to the user's home directory.
 // All other paths (absolute or relative) are returned unchanged.
 func expandTilde(p string) (string, error) {

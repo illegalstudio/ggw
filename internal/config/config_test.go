@@ -127,3 +127,24 @@ func TestLoadTildeAloneExpandsToHome(t *testing.T) {
 		t.Fatalf("got %q, want %q", cfg.BaseDir, home)
 	}
 }
+
+func TestWriteDefaultCreatesSeededReloadableFile(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path, err := ConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The ~/.config/ggw directory does not exist yet; WriteDefault must create it.
+	if err := WriteDefault(path, "~/.local/share/worktrees"); err != nil {
+		t.Fatalf("WriteDefault: %v", err)
+	}
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load after WriteDefault: %v", err)
+	}
+	want := filepath.Join(home, ".local", "share", "worktrees")
+	if cfg.BaseDir != want {
+		t.Fatalf("got %q, want %q", cfg.BaseDir, want)
+	}
+}
