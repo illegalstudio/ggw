@@ -395,6 +395,32 @@ func TestCLIInitJSON(t *testing.T) {
 	}
 }
 
+func TestCLICreateHonorsConfigBaseDir(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	// Configure a custom base dir. childEnv also sets XDG_DATA_HOME, so this
+	// asserts config wins over XDG.
+	base := filepath.Join(home, "custom-worktrees")
+	cfgDir := filepath.Join(home, ".config", "ggw")
+	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfgDir, "config.yaml"),
+		[]byte("base_dir: "+base+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runGGW(t, home, repo, "create", "feature/login")
+	if err != nil {
+		t.Fatalf("ggw create failed: %v\n%s", err, out)
+	}
+	want := filepath.Join(base, "acme", "api", "feature-login")
+	if _, err := os.Stat(filepath.Join(want, ".git")); err != nil {
+		t.Fatalf("worktree not created at %s: %v\noutput:\n%s", want, err, out)
+	}
+}
+
 func TestCLIExternalDetachedWorktree(t *testing.T) {
 	home := setupHome(t)
 	repo := initGitRepo(t, home)
