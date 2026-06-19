@@ -49,6 +49,8 @@ Behavior:
 
 The branch name is passed to git unchanged. Only the directory name is slugified, so `feature/login` is stored as `feature-login`.
 
+Tab completion suggests existing local and `origin/*` branches that do **not** already have a worktree, so you can quickly spin up a worktree on an existing branch without creating a new one. Branches already checked out in a worktree are omitted.
+
 ## `ggw pr`
 
 Create a worktree for a GitHub pull request.

@@ -11,10 +11,11 @@ import (
 )
 
 var createCmd = &cobra.Command{
-	Use:     "create <branch>",
-	Short:   "Create a worktree for a branch (creates the branch if needed)",
-	GroupID: GroupWorktree,
-	Args:    cobra.ExactArgs(1),
+	Use:               "create <branch>",
+	Short:             "Create a worktree for a branch (creates the branch if needed)",
+	GroupID:           GroupWorktree,
+	Args:              cobra.ExactArgs(1),
+	ValidArgsFunction: createCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch := args[0]
 		from, _ := cmd.Flags().GetString("from")

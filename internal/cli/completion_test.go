@@ -51,6 +51,48 @@ func TestWorktreeCompletionItemsSuggestsHandleForDetached(t *testing.T) {
 	}
 }
 
+func TestCreateCompletionItemsExcludesBranchesWithWorktrees(t *testing.T) {
+	list := []worktree.Worktree{
+		{Path: "/repo", Branch: "main"},
+		{Path: "/worktrees/feature-x", Branch: "feature/x"},
+	}
+	local := []string{"main", "feature/x", "feature/y", "bugfix/z"}
+
+	got := createCompletionItems(local, nil, list, "")
+	want := []string{"feature/y", "bugfix/z"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCreateCompletionItemsIncludesRemoteWithoutLocalCounterpart(t *testing.T) {
+	list := []worktree.Worktree{
+		{Path: "/repo", Branch: "main"},
+	}
+	local := []string{"main", "feature/x"}
+	remote := []string{"main", "feature/x", "colleague/feature"}
+
+	got := createCompletionItems(local, remote, list, "")
+	want := []string{"feature/x", "colleague/feature"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCreateCompletionItemsFiltersByPrefix(t *testing.T) {
+	list := []worktree.Worktree{{Path: "/repo", Branch: "main"}}
+	local := []string{"main", "feature/x", "feature/y", "bugfix/z"}
+
+	got := createCompletionItems(local, nil, list, "feat")
+	want := []string{"feature/x", "feature/y"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
 func TestResolveOneWorktreeMatchesHandleNotMain(t *testing.T) {
 	list := []worktree.Worktree{
 		{Path: "/Volumes/x/elephc", Branch: "main"},

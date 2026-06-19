@@ -163,6 +163,46 @@ func TestCLICreateListCDExecDelete(t *testing.T) {
 	}
 }
 
+func TestCLICreateCompletionExcludesWorktreeBranches(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	// Two extra local branches; "feature/done" will get a worktree.
+	runGit(t, home, repo, "branch", "feature/todo")
+	runGit(t, home, repo, "branch", "feature/done")
+
+	if out, err := runGGW(t, home, repo, "create", "feature/done"); err != nil {
+		t.Fatalf("ggw create failed: %v\n%s", err, out)
+	}
+
+	out, err := runGGW(t, home, repo, "__complete", "create", "")
+	if err != nil {
+		t.Fatalf("ggw create completion failed: %v\n%s", err, out)
+	}
+
+	lines := strings.Split(out, "\n")
+	has := func(branch string) bool {
+		for _, l := range lines {
+			if strings.TrimSpace(l) == branch {
+				return true
+			}
+		}
+		return false
+	}
+
+	// feature/todo has no worktree → suggested.
+	if !has("feature/todo") {
+		t.Fatalf("completion missing branch without a worktree:\n%s", out)
+	}
+	// main and feature/done are checked out in worktrees → excluded.
+	if has("feature/done") {
+		t.Fatalf("completion includes branch that already has a worktree:\n%s", out)
+	}
+	if has("main") {
+		t.Fatalf("completion includes the main branch (already checked out):\n%s", out)
+	}
+}
+
 func TestCLIPRRequiresGH(t *testing.T) {
 	home := setupHome(t)
 	cwd := t.TempDir()

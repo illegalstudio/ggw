@@ -95,6 +95,45 @@ func DefaultBranch(repoPath string) (string, error) {
 	return strings.TrimPrefix(strings.TrimSpace(string(out)), "origin/"), nil
 }
 
+// LocalBranches returns the names of all local branches (refs/heads), in the
+// order git reports them.
+func LocalBranches(repoPath string) ([]string, error) {
+	out, err := exec.Command("git", "-C", repoPath, "for-each-ref", "--format=%(refname:short)", "refs/heads").Output()
+	if err != nil {
+		return nil, gitError("git for-each-ref refs/heads", err)
+	}
+	return nonEmptyLines(string(out)), nil
+}
+
+// RemoteBranches returns the branches on the origin remote with the "origin/"
+// prefix stripped. The symbolic origin/HEAD ref is skipped.
+func RemoteBranches(repoPath string) ([]string, error) {
+	out, err := exec.Command("git", "-C", repoPath, "for-each-ref", "--format=%(refname)", "refs/remotes/origin").Output()
+	if err != nil {
+		return nil, gitError("git for-each-ref refs/remotes/origin", err)
+	}
+	const prefix = "refs/remotes/origin/"
+	var branches []string
+	for _, line := range nonEmptyLines(string(out)) {
+		name := strings.TrimPrefix(line, prefix)
+		if name == line || name == "HEAD" {
+			continue
+		}
+		branches = append(branches, name)
+	}
+	return branches, nil
+}
+
+func nonEmptyLines(s string) []string {
+	var out []string
+	for _, line := range strings.Split(s, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
+			out = append(out, line)
+		}
+	}
+	return out
+}
+
 // CreateOptions configures a `git worktree add` invocation.
 type CreateOptions struct {
 	RepoPath string // git repo to operate from

@@ -62,6 +62,69 @@ func deleteCompletion(cmd *cobra.Command, args []string, toComplete string) ([]s
 	return comps, cobra.ShellCompDirectiveNoFileComp
 }
 
+// createCompletion suggests branches that do not yet have a worktree, so that
+// `ggw create <branch>` can check out an existing branch into a fresh worktree
+// instead of always creating a new branch. Local branches are listed first,
+// then origin branches that have no local counterpart.
+func createCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	root, err := worktree.RepoRoot(cwd)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	list, err := worktree.List(root)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	local, err := worktree.LocalBranches(root)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+	remote, err := worktree.RemoteBranches(root)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveError
+	}
+
+	comps := createCompletionItems(local, remote, list, toComplete)
+	return comps, cobra.ShellCompDirectiveNoFileComp
+}
+
+// createCompletionItems returns branch names from local and remote that match
+// toComplete and are not already checked out in an existing worktree. The
+// result preserves order (local before remote) and contains no duplicates.
+func createCompletionItems(local, remote []string, list []worktree.Worktree, toComplete string) []string {
+	taken := make(map[string]bool)
+	for _, w := range list {
+		if w.Branch != "" {
+			taken[w.Branch] = true
+		}
+	}
+
+	var comps []string
+	seen := make(map[string]bool)
+	add := func(branch string) {
+		if branch == "" || taken[branch] || seen[branch] {
+			return
+		}
+		if completionMatches(branch, toComplete) {
+			comps = append(comps, branch)
+			seen[branch] = true
+		}
+	}
+
+	for _, b := range local {
+		add(b)
+	}
+	for _, b := range remote {
+		add(b)
+	}
+	return comps
+}
+
 func worktreeCompletionItems(list []worktree.Worktree, root, toComplete string) []string {
 	handles := worktree.Handles(list)
 	var comps []string
