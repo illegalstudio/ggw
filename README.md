@@ -1,13 +1,32 @@
-# GGW (Go Git Worktrees)
+<h1 align="center">GGW</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Follow @nahime0 on X](https://img.shields.io/badge/Follow%20@nahime0-black?logo=x)](https://x.com/nahime0)
+<p align="center">
+  <em>Git worktrees, ergonomic.</em>
+</p>
 
-![ggw demo: list, create and cd](demo/list-create-cd.gif)
+<p align="center">
+  <a href="https://github.com/illegalstudio/ggw/stargazers"><img src="https://img.shields.io/github/stars/illegalstudio/ggw?style=flat-square&logo=github&logoColor=white&label=stars&color=00ADD8" alt="Stars"></a>
+  <a href="https://github.com/illegalstudio/ggw/releases"><img src="https://img.shields.io/github/downloads/illegalstudio/ggw/total?style=flat-square&logo=github&logoColor=white&label=downloads&color=00ADD8" alt="Downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/illegalstudio/ggw?style=flat-square&color=00ADD8" alt="License: MIT"></a>
+  <a href="https://x.com/nahime0"><img src="https://img.shields.io/badge/Follow-%40nahime0-00ADD8?style=flat-square&logo=x&logoColor=white" alt="Follow @nahime0 on X"></a>
+</p>
 
-Git worktrees, ergonomic. Stores all worktrees of all your repos in a single
-predictable location, derived from the repo's `origin` remote and the branch
-name.
+<p align="center">
+  <strong>Predictable worktree paths &middot; Real shell <code>cd</code> &middot; GitHub PR worktrees &middot; Single Go binary</strong>
+</p>
+
+<p align="center">
+  GGW stores every worktree of every repo in one predictable location, derived from the repo's <code>origin</code> remote and the branch name — so you always know where your worktrees live and can jump between them with a real shell <code>cd</code>.
+</p>
+
+<p align="center">
+  <img src="demo/list-create-cd.gif" alt="ggw demo: list, create and cd" width="640">
+</p>
+
+---
+
+Worktrees are stored under a single predictable path, derived from the repo's
+`origin` remote and the branch name:
 
 ```
 ~/.local/share/worktrees/<org>/<repo>/<branch-slug>/
