@@ -65,18 +65,18 @@ const template = `# .ggw.yaml — per-project worktree provisioning.
 # the newly created worktree.
 
 # Files/directories copied (recursively) into each new worktree.
-copy: []
+copy:
   # - .env
 
 # Files/directories symlinked into each new worktree. The symlink points at the
 # absolute path in the main worktree.
-symlink: []
+symlink:
   # - node_modules
   # - vendor
 
 # Shell commands run (via ` + "`sh -c`" + `) inside each new worktree, in order, after
 # copy and symlink. Execution stops at the first non-zero exit code.
-post_create: []
+post_create:
   # - composer install
   # - npm ci
 `

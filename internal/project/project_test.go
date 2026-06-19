@@ -46,6 +46,46 @@ func TestLoadParsesAllSections(t *testing.T) {
 	}
 }
 
+func TestTemplateExamplesAreValidWhenUncommented(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ConfigFileName)
+	if err := WriteTemplate(path, false); err != nil {
+		t.Fatalf("WriteTemplate: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	// Strip the leading "# " from indented example list-item lines (pattern: "  # - ...")
+	lines := strings.Split(string(raw), "\n")
+	for i, line := range lines {
+		if strings.HasPrefix(line, "  # - ") {
+			lines[i] = "  " + line[4:] // remove "# " after the two-space indent
+		}
+	}
+	uncommented := strings.Join(lines, "\n")
+	if err := os.WriteFile(path, []byte(uncommented), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg, exists, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load failed on uncommented template: %v", err)
+	}
+	if !exists {
+		t.Fatal("expected exists=true")
+	}
+	if !reflect.DeepEqual(cfg.Copy, []string{".env"}) {
+		t.Fatalf("copy = %v, want [.env]", cfg.Copy)
+	}
+	if !reflect.DeepEqual(cfg.Symlink, []string{"node_modules", "vendor"}) {
+		t.Fatalf("symlink = %v, want [node_modules vendor]", cfg.Symlink)
+	}
+	if !reflect.DeepEqual(cfg.PostCreate, []string{"composer install", "npm ci"}) {
+		t.Fatalf("post_create = %v, want [composer install npm ci]", cfg.PostCreate)
+	}
+}
+
 func TestWriteTemplateCreatesAndGuardsOverwrite(t *testing.T) {
 	path := filepath.Join(t.TempDir(), ConfigFileName)
 
