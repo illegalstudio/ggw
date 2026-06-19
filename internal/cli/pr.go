@@ -23,6 +23,7 @@ var prCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		bare, _ := cmd.Flags().GetBool("bare")
 		if err := requireGH(); err != nil {
 			return err
 		}
@@ -51,10 +52,13 @@ var prCmd = &cobra.Command{
 			return err
 		}
 
+		// Roll back the worktree on any failure; the branch (if any) is always kept.
 		success := false
 		defer func() {
 			if !success {
-				_ = worktree.Remove(root, dest, true)
+				if rmErr := worktree.Remove(root, dest, true); rmErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to roll back worktree %s: %v\n", dest, rmErr)
+				}
 			}
 		}()
 
@@ -64,6 +68,10 @@ var prCmd = &cobra.Command{
 
 		branch, err := worktree.CurrentBranch(dest)
 		if err != nil {
+			return err
+		}
+
+		if err := provisionWorktree(root, dest, bare, os.Stderr); err != nil {
 			return err
 		}
 		success = true
@@ -90,6 +98,7 @@ var prCmd = &cobra.Command{
 }
 
 func init() {
+	prCmd.Flags().Bool("bare", false, "Create the worktree without running .ggw.yaml provisioning")
 	rootCmd.AddCommand(prCmd)
 }
 

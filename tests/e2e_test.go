@@ -203,6 +203,34 @@ func TestCLICreateCompletionExcludesWorktreeBranches(t *testing.T) {
 	}
 }
 
+func TestCLIProjectInitCreatesConfig(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	out, err := runGGW(t, home, repo, "project-init")
+	if err != nil {
+		t.Fatalf("ggw project-init failed: %v\n%s", err, out)
+	}
+	cfgPath := filepath.Join(repo, ".ggw.yaml")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf(".ggw.yaml not created: %v", err)
+	}
+	if !strings.Contains(string(data), "post_create:") {
+		t.Fatalf("template missing sections:\n%s", data)
+	}
+
+	// Without --force, a second run must fail.
+	if out, err := runGGW(t, home, repo, "project-init"); err == nil {
+		t.Fatalf("expected project-init to fail on existing file:\n%s", out)
+	}
+
+	// With --force, it regenerates.
+	if out, err := runGGW(t, home, repo, "project-init", "--force"); err != nil {
+		t.Fatalf("ggw project-init --force failed: %v\n%s", err, out)
+	}
+}
+
 func TestCLIPRRequiresGH(t *testing.T) {
 	home := setupHome(t)
 	cwd := t.TempDir()
@@ -566,5 +594,127 @@ func TestCLIExternalDetachedWorktree(t *testing.T) {
 	}
 	if _, err := os.Stat(extPath); !os.IsNotExist(err) {
 		t.Fatalf("external worktree still exists after delete, stat err: %v", err)
+	}
+}
+
+func TestCLICreateProvisionsWorktree(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	// Untracked source files + a .ggw.yaml committed to the repo.
+	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("TOKEN=abc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repo, "deps"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	ggwYaml := "copy:\n  - .env\nsymlink:\n  - deps\npost_create:\n  - echo provisioned > .provisioned\n"
+	if err := os.WriteFile(filepath.Join(repo, ".ggw.yaml"), []byte(ggwYaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, home, repo, "add", ".ggw.yaml")
+	runGit(t, home, repo, "commit", "-m", "add ggw config")
+
+	out, err := runGGW(t, home, repo, "create", "feature/work")
+	if err != nil {
+		t.Fatalf("ggw create failed: %v\n%s", err, out)
+	}
+	dest := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-work")
+
+	if got, _ := os.ReadFile(filepath.Join(dest, ".env")); string(got) != "TOKEN=abc" {
+		t.Fatalf("copied .env = %q", got)
+	}
+	fi, err := os.Lstat(filepath.Join(dest, "deps"))
+	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("deps should be a symlink: err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".provisioned")); err != nil {
+		t.Fatalf("post_create marker missing: %v", err)
+	}
+}
+
+func TestCLICreateBareSkipsProvisioning(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("TOKEN=abc"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ggwYaml := "copy:\n  - .env\n"
+	if err := os.WriteFile(filepath.Join(repo, ".ggw.yaml"), []byte(ggwYaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, home, repo, "add", ".ggw.yaml")
+	runGit(t, home, repo, "commit", "-m", "add ggw config")
+
+	out, err := runGGW(t, home, repo, "create", "feature/bare", "--bare")
+	if err != nil {
+		t.Fatalf("ggw create --bare failed: %v\n%s", err, out)
+	}
+	dest := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-bare")
+	if _, err := os.Stat(filepath.Join(dest, ".env")); err == nil {
+		t.Fatal(".env should NOT be copied with --bare")
+	}
+}
+
+func TestCLIPRProvisionsWorktree(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+	binDir := t.TempDir()
+	fakeGH := filepath.Join(binDir, "gh")
+
+	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("TOKEN=pr"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ggwYaml := "copy:\n  - .env\npost_create:\n  - echo ok > .provisioned\n"
+	if err := os.WriteFile(filepath.Join(repo, ".ggw.yaml"), []byte(ggwYaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, home, repo, "add", ".ggw.yaml")
+	runGit(t, home, repo, "commit", "-m", "add ggw config")
+
+	script := `#!/bin/sh
+git checkout -b contributor/feature
+`
+	if err := os.WriteFile(fakeGH, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	out, err := runGGWWithEnv(t, home, repo, []string{pathEnv}, "pr", "321")
+	if err != nil {
+		t.Fatalf("ggw pr failed: %v\n%s", err, out)
+	}
+	dest := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "pr-321")
+	if got, _ := os.ReadFile(filepath.Join(dest, ".env")); string(got) != "TOKEN=pr" {
+		t.Fatalf("copied .env = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".provisioned")); err != nil {
+		t.Fatalf("post_create marker missing: %v", err)
+	}
+}
+
+func TestCLICreateRollsBackOnFailureKeepingBranch(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	ggwYaml := "post_create:\n  - exit 7\n"
+	if err := os.WriteFile(filepath.Join(repo, ".ggw.yaml"), []byte(ggwYaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, home, repo, "add", ".ggw.yaml")
+	runGit(t, home, repo, "commit", "-m", "add ggw config")
+
+	out, err := runGGW(t, home, repo, "create", "feature/fail")
+	if err == nil {
+		t.Fatalf("expected create to fail on provisioning error:\n%s", out)
+	}
+	dest := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-fail")
+	if _, statErr := os.Stat(dest); !os.IsNotExist(statErr) {
+		t.Fatalf("worktree should have been removed, stat err: %v", statErr)
+	}
+	// The branch must survive the rollback.
+	if _, err := runGitCommand(t, home, repo, "show-ref", "--verify", "--quiet", "refs/heads/feature/fail"); err != nil {
+		t.Fatal("branch feature/fail should still exist after rollback")
 	}
 }

@@ -88,6 +88,17 @@ ggw delete feature/login --without-branch --force  # keep the branch, skip confi
 ggw --version
 ```
 
+To make every new worktree immediately ready to use, add a `.ggw.yaml` at your
+repository root:
+
+```bash
+ggw project-init   # scaffold .ggw.yaml in the current repo
+```
+
+`.ggw.yaml` can copy files (e.g. `.env`), create symlinks (e.g. `node_modules`),
+and run setup commands after each `ggw create` or `ggw pr`. Pass `--bare` to
+skip provisioning for a single run. See [Project Provisioning](docs/configuration.md#project-provisioning-ggwyaml).
+
 `ggw pr <id>` uses [GitHub CLI](https://cli.github.com/) to check out the PR
 branch, so the created worktree keeps the tracking configuration that allows
 `git push` when GitHub permits pushing to the PR branch.
@@ -143,8 +154,9 @@ With this, a worktree for `acme/api` on branch `feature/login` lives at
 
 ## Status
 
-All commands are operative. See [`ROADMAP.md`](ROADMAP.md) for the
-backlog (config file, post-create hooks, completions, releases).
+All commands are operative, including config file, project provisioning
+(`.ggw.yaml`), tab completion, and releases. See [`ROADMAP.md`](ROADMAP.md)
+for the remaining backlog.
 
 ## License
 

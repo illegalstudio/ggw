@@ -35,11 +35,13 @@ Create a worktree for a branch.
 ```bash
 ggw create feature/login
 ggw create fix/api --from main
+ggw create feature/login --bare   # skip provisioning for this run
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--from` | Base ref used when creating a new local branch. Defaults to `HEAD`. |
+| `--bare` | Skip `.ggw.yaml` provisioning for this run. |
 
 Behavior:
 
@@ -51,6 +53,8 @@ The branch name is passed to git unchanged. Only the directory name is slugified
 
 Tab completion suggests existing local and `origin/*` branches that do **not** already have a worktree, so you can quickly spin up a worktree on an existing branch without creating a new one. Branches already checked out in a worktree are omitted.
 
+If a `.ggw.yaml` exists at the repository root, `ggw create` provisions the new worktree automatically (copy → symlink → post_create). If provisioning fails, the worktree is removed but the branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
+
 ## `ggw pr`
 
 Create a worktree for a GitHub pull request.
@@ -58,7 +62,12 @@ Create a worktree for a GitHub pull request.
 ```bash
 ggw pr 123
 ggw --json pr 123
+ggw pr 123 --bare   # skip provisioning for this run
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--bare` | Skip `.ggw.yaml` provisioning for this run. |
 
 `ggw pr` requires [GitHub CLI](https://cli.github.com/) to be installed and authenticated. If `gh` is not available, the command exits with installation guidance.
 
@@ -69,6 +78,8 @@ Behavior:
 - Leaves the checkout on the branch selected by `gh`, preserving tracking metadata so `git push` works when GitHub permits pushing to the PR branch.
 
 For PRs from external forks, pushing still depends on GitHub permissions such as maintainer edit access.
+
+If a `.ggw.yaml` exists at the repository root, `ggw pr` provisions the new worktree automatically (copy → symlink → post_create). If provisioning fails, the worktree is removed but the branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
 
 ## `ggw cd`
 
@@ -151,3 +162,32 @@ Behavior:
   behavior-preserving until edited.
 
 See [Configuration](configuration.md) for the file format and precedence.
+
+## `ggw project-init`
+
+Create a `.ggw.yaml` provisioning file at the repository root.
+
+```bash
+ggw project-init
+ggw project-init --force   # overwrite an existing file
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Overwrite an existing `.ggw.yaml`. |
+
+`.ggw.yaml` declares how each new worktree is set up after `ggw create` or `ggw pr`:
+
+```yaml
+copy:            # files/dirs copied from the main worktree
+  - .env
+symlink:         # files/dirs symlinked to the main worktree
+  - node_modules
+  - vendor
+post_create:     # shell commands run in the new worktree, in order
+  - composer install
+```
+
+Provisioning runs in the fixed order copy → symlink → post_create. If any step fails, the new worktree is removed (the branch is kept) so you can fix the issue and re-run. Pass `--bare` to `create` or `pr` to skip provisioning for a single run.
+
+See [Project Provisioning](configuration.md#project-provisioning-ggwyaml) for the full schema reference.

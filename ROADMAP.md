@@ -26,9 +26,9 @@
 
 ## Backlog / future
 
-- [ ] Config file (TOML) for path override, post-create hooks, etc.
-- [ ] Post-create hook (e.g. automatic `npm install`)
-- [ ] Tab completion zsh/bash
-- [ ] Goreleaser
-- [ ] Homebrew tap
+- [x] Config file for path override (`ggw init`, `~/.config/ggw/config.yaml`)
+- [x] Post-create hooks / project provisioning (`.ggw.yaml`: copy, symlink, post_create)
+- [x] Tab completion zsh/bash/fish
+- [x] Goreleaser
+- [x] Homebrew tap
 - [ ] Configurable fallback when `origin` remote is missing (today: explicit error)

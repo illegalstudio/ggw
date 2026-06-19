@@ -19,6 +19,7 @@ var createCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		branch := args[0]
 		from, _ := cmd.Flags().GetString("from")
+		bare, _ := cmd.Flags().GetBool("bare")
 
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -53,6 +54,21 @@ var createCmd = &cobra.Command{
 			return err
 		}
 
+		// Provision transactionally: on any failure, remove the worktree (force=true
+		// allows dirty trees) but keep the branch so pre-existing work is never lost.
+		provisioned := false
+		defer func() {
+			if !provisioned {
+				if rmErr := worktree.Remove(root, dest, true); rmErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to roll back worktree %s: %v\n", dest, rmErr)
+				}
+			}
+		}()
+		if err := provisionWorktree(root, dest, bare, os.Stderr); err != nil {
+			return err
+		}
+		provisioned = true
+
 		if done, err := maybeJSON(map[string]any{
 			"branch": branch,
 			"slug":   slug,
@@ -74,5 +90,6 @@ var createCmd = &cobra.Command{
 
 func init() {
 	createCmd.Flags().String("from", "", "Base ref for new branches (default: HEAD)")
+	createCmd.Flags().Bool("bare", false, "Create the worktree without running .ggw.yaml provisioning")
 	rootCmd.AddCommand(createCmd)
 }
