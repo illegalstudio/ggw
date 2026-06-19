@@ -96,6 +96,17 @@ func TestProvisionMissingSourceErrors(t *testing.T) {
 	}
 }
 
+func TestProvisionMissingSymlinkSourceErrors(t *testing.T) {
+	main, dest := t.TempDir(), t.TempDir()
+	err := Provision(ProvisionOptions{
+		MainPath: main, DestPath: dest,
+		Config: &Config{Symlink: []string{"node_modules"}}, Out: io.Discard,
+	})
+	if err == nil {
+		t.Fatal("expected error for missing symlink source")
+	}
+}
+
 func TestProvisionRejectsAbsoluteAndEscapingPaths(t *testing.T) {
 	main, dest := t.TempDir(), t.TempDir()
 	for _, bad := range []string{"/etc/passwd", "../outside"} {

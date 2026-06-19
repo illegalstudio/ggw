@@ -54,12 +54,14 @@ var createCmd = &cobra.Command{
 			return err
 		}
 
-		// Provision transactionally: on any failure, remove the worktree
-		// but keep the branch so pre-existing work is never lost.
+		// Provision transactionally: on any failure, remove the worktree (force=true
+		// allows dirty trees) but keep the branch so pre-existing work is never lost.
 		provisioned := false
 		defer func() {
 			if !provisioned {
-				_ = worktree.Remove(root, dest, true)
+				if rmErr := worktree.Remove(root, dest, true); rmErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to roll back worktree %s: %v\n", dest, rmErr)
+				}
 			}
 		}()
 		if err := provisionWorktree(root, dest, bare, os.Stderr); err != nil {

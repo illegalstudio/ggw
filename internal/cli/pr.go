@@ -52,10 +52,13 @@ var prCmd = &cobra.Command{
 			return err
 		}
 
+		// Roll back the worktree on any failure; the branch (if any) is always kept.
 		success := false
 		defer func() {
 			if !success {
-				_ = worktree.Remove(root, dest, true)
+				if rmErr := worktree.Remove(root, dest, true); rmErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to roll back worktree %s: %v\n", dest, rmErr)
+				}
 			}
 		}()
 
