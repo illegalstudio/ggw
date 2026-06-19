@@ -154,8 +154,9 @@ With this, a worktree for `acme/api` on branch `feature/login` lives at
 
 ## Status
 
-All commands are operative. See [`ROADMAP.md`](ROADMAP.md) for the
-backlog (config file, post-create hooks, completions, releases).
+All commands are operative, including config file, project provisioning
+(`.ggw.yaml`), tab completion, and releases. See [`ROADMAP.md`](ROADMAP.md)
+for the remaining backlog.
 
 ## License
 
