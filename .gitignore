@@ -10,3 +10,6 @@ vendor/
 *.test
 *.out
 *.log
+
+# Superpowers planning artifacts (specs/plans)
+docs/superpowers/
