@@ -657,6 +657,43 @@ func TestCLICreateBareSkipsProvisioning(t *testing.T) {
 	}
 }
 
+func TestCLIPRProvisionsWorktree(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+	binDir := t.TempDir()
+	fakeGH := filepath.Join(binDir, "gh")
+
+	if err := os.WriteFile(filepath.Join(repo, ".env"), []byte("TOKEN=pr"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ggwYaml := "copy:\n  - .env\npost_create:\n  - echo ok > .provisioned\n"
+	if err := os.WriteFile(filepath.Join(repo, ".ggw.yaml"), []byte(ggwYaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, home, repo, "add", ".ggw.yaml")
+	runGit(t, home, repo, "commit", "-m", "add ggw config")
+
+	script := `#!/bin/sh
+git checkout -b contributor/feature
+`
+	if err := os.WriteFile(fakeGH, []byte(script), 0755); err != nil {
+		t.Fatalf("write fake gh: %v", err)
+	}
+
+	pathEnv := "PATH=" + binDir + string(os.PathListSeparator) + os.Getenv("PATH")
+	out, err := runGGWWithEnv(t, home, repo, []string{pathEnv}, "pr", "321")
+	if err != nil {
+		t.Fatalf("ggw pr failed: %v\n%s", err, out)
+	}
+	dest := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "pr-321")
+	if got, _ := os.ReadFile(filepath.Join(dest, ".env")); string(got) != "TOKEN=pr" {
+		t.Fatalf("copied .env = %q", got)
+	}
+	if _, err := os.Stat(filepath.Join(dest, ".provisioned")); err != nil {
+		t.Fatalf("post_create marker missing: %v", err)
+	}
+}
+
 func TestCLICreateRollsBackOnFailureKeepingBranch(t *testing.T) {
 	home := setupHome(t)
 	repo := initGitRepo(t, home)

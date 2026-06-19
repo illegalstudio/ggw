@@ -23,6 +23,7 @@ var prCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		bare, _ := cmd.Flags().GetBool("bare")
 		if err := requireGH(); err != nil {
 			return err
 		}
@@ -66,6 +67,10 @@ var prCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
+		if err := provisionWorktree(root, dest, bare, os.Stderr); err != nil {
+			return err
+		}
 		success = true
 
 		if done, err := maybeJSON(map[string]any{
@@ -90,6 +95,7 @@ var prCmd = &cobra.Command{
 }
 
 func init() {
+	prCmd.Flags().Bool("bare", false, "Create the worktree without running .ggw.yaml provisioning")
 	rootCmd.AddCommand(prCmd)
 }
 
