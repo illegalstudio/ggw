@@ -203,6 +203,34 @@ func TestCLICreateCompletionExcludesWorktreeBranches(t *testing.T) {
 	}
 }
 
+func TestCLIProjectInitCreatesConfig(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	out, err := runGGW(t, home, repo, "project-init")
+	if err != nil {
+		t.Fatalf("ggw project-init failed: %v\n%s", err, out)
+	}
+	cfgPath := filepath.Join(repo, ".ggw.yaml")
+	data, err := os.ReadFile(cfgPath)
+	if err != nil {
+		t.Fatalf(".ggw.yaml not created: %v", err)
+	}
+	if !strings.Contains(string(data), "post_create:") {
+		t.Fatalf("template missing sections:\n%s", data)
+	}
+
+	// Without --force, a second run must fail.
+	if out, err := runGGW(t, home, repo, "project-init"); err == nil {
+		t.Fatalf("expected project-init to fail on existing file:\n%s", out)
+	}
+
+	// With --force, it regenerates.
+	if out, err := runGGW(t, home, repo, "project-init", "--force"); err != nil {
+		t.Fatalf("ggw project-init --force failed: %v\n%s", err, out)
+	}
+}
+
 func TestCLIPRRequiresGH(t *testing.T) {
 	home := setupHome(t)
 	cwd := t.TempDir()
