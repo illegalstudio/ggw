@@ -1,4 +1,4 @@
-.PHONY: build install test fmt vet clean
+.PHONY: build install test fmt vet clean deploy
 
 BINARY := ggw
 PKG    := ./cmd/ggw
@@ -26,3 +26,7 @@ vet:
 
 clean:
 	rm -f $(BINARY)
+
+# Interactive release: propose next semver tag, then tag + push to origin.
+deploy:
+	@scripts/deploy.sh
