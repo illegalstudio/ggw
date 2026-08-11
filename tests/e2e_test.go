@@ -82,6 +82,40 @@ func TestCLIShellInitShellIntegration(t *testing.T) {
 	}
 }
 
+func TestCLICreateRandomName(t *testing.T) {
+	home := setupHome(t)
+	repo := initGitRepo(t, home)
+
+	out, err := runGGW(t, home, repo, "--json", "create")
+	if err != nil {
+		t.Fatalf("ggw create (no name) failed: %v\n%s", err, out)
+	}
+	var payload struct {
+		Branch string `json:"branch"`
+		Slug   string `json:"slug"`
+		Path   string `json:"path"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("create JSON invalid: %v\n%s", err, out)
+	}
+	if !strings.Contains(payload.Branch, "-") {
+		t.Fatalf("expected adjective-noun branch, got %q", payload.Branch)
+	}
+	parts := strings.Split(payload.Branch, "-")
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		t.Fatalf("expected two-word name, got %q", payload.Branch)
+	}
+	if payload.Slug != payload.Branch {
+		t.Fatalf("slug = %q, want same as branch %q", payload.Slug, payload.Branch)
+	}
+	if _, err := os.Stat(filepath.Join(payload.Path, ".git")); err != nil {
+		t.Fatalf("worktree not created at %s: %v\noutput:\n%s", payload.Path, err, out)
+	}
+	if branch := runGit(t, home, payload.Path, "rev-parse", "--abbrev-ref", "HEAD"); branch != payload.Branch {
+		t.Fatalf("worktree branch = %q, want %q", branch, payload.Branch)
+	}
+}
+
 func TestCLICreateListCDExecDelete(t *testing.T) {
 	home := setupHome(t)
 	repo := initGitRepo(t, home)

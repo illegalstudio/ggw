@@ -34,6 +34,7 @@ Create a worktree for a branch.
 
 ```bash
 ggw create feature/login
+ggw create                            # random name, e.g. intelligent-elephant
 ggw create fix/api --from main
 ggw create feature/login --bare   # skip provisioning for this run
 ```
@@ -45,6 +46,7 @@ ggw create feature/login --bare   # skip provisioning for this run
 
 Behavior:
 
+- If no branch argument is given, `ggw` generates a random Docker-style name (`adjective-noun`, e.g. `intelligent-elephant`), skipping names that already exist as a local branch, an `origin/*` tracking branch, or a worktree path.
 - If the branch exists locally, `ggw` checks it out into a new worktree.
 - If `origin/<branch>` exists locally, `ggw` creates a tracking branch.
 - Otherwise, `ggw` creates a new branch from `--from` or `HEAD`.

@@ -76,6 +76,7 @@ ggw list                              # show all worktrees of the current repo
 ggw list --json                       # machine-readable output
 ggw create feature/login              # create worktree at .../<org>/<repo>/feature-login/
                                       # creates the branch from HEAD if it does not exist
+ggw create                            # random name (e.g. intelligent-elephant)
 ggw create fix --from main            # create branch from a specific base
 ggw pr 123                            # create a tracked worktree for GitHub PR #123 (requires gh)
 ggw cd feature/login                  # cd into a worktree (needs shell integration, see below)

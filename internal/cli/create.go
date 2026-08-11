@@ -11,13 +11,16 @@ import (
 )
 
 var createCmd = &cobra.Command{
-	Use:               "create <branch>",
+	Use:               "create [branch]",
 	Short:             "Create a worktree for a branch (creates the branch if needed)",
+	Long: `Create a worktree for a branch.
+
+If branch is omitted, ggw generates a random Docker-style name
+(adjective-noun), e.g. intelligent-elephant.`,
 	GroupID:           GroupWorktree,
-	Args:              cobra.ExactArgs(1),
+	Args:              cobra.MaximumNArgs(1),
 	ValidArgsFunction: createCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		branch := args[0]
 		from, _ := cmd.Flags().GetString("from")
 		bare, _ := cmd.Flags().GetBool("bare")
 
@@ -33,6 +36,16 @@ var createCmd = &cobra.Command{
 		org, repo, err := worktree.OriginOrgRepo(root)
 		if err != nil {
 			return err
+		}
+
+		var branch string
+		if len(args) == 1 {
+			branch = args[0]
+		} else {
+			branch, err = worktree.UniqueRandomName(root, org, repo)
+			if err != nil {
+				return err
+			}
 		}
 
 		slug := worktree.SlugifyBranch(branch)
