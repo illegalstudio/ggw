@@ -68,6 +68,21 @@ cd ggw
 make && make install
 ```
 
+### AI agent skill
+
+ggw bundles an Agent Skills-compatible skill that teaches AI agents how to drive
+the CLI safely. Install it for the current user after installing or upgrading ggw:
+
+```bash
+ggw skills install
+```
+
+Both `~/.agents/skills/ggw` (Codex and compatible hosts) and
+`~/.claude/skills/ggw` (Claude Code) are preselected. Reinstalling is safe: an
+unmodified copy is updated in place, and local edits are protected until you pass
+`--force`. See [Commands](docs/commands.md#ggw-skills-install) for the full
+reference.
+
 ## Usage
 
 ```bash
