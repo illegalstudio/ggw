@@ -167,3 +167,23 @@ func appendWorktreeCompletionItems(comps []string, w worktree.Worktree, handle, 
 func completionMatches(candidate, toComplete string) bool {
 	return toComplete == "" || strings.HasPrefix(strings.ToLower(candidate), strings.ToLower(toComplete))
 }
+
+// skillTargetCompletionItems returns the `ggw skills install --target` keys
+// that match toComplete, in declaration order.
+func skillTargetCompletionItems(toComplete string) []string {
+	var comps []string
+	for _, key := range skillTargetKeys() {
+		if completionMatches(key, toComplete) {
+			comps = append(comps, key)
+		}
+	}
+	return comps
+}
+
+func skillTargetCompletion(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	return skillTargetCompletionItems(toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+func registerSkillTargetCompletion(cmd *cobra.Command) {
+	_ = cmd.RegisterFlagCompletionFunc("target", skillTargetCompletion)
+}
