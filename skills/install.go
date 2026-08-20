@@ -83,9 +83,9 @@ func Install(destination string, replace bool) (InstallStatus, error) {
 	}
 	if state.exists && !state.managedUnmodified && !replace {
 		if !state.isDir {
-			return "", fmt.Errorf("skill destination %s exists but is not a directory (a symlink?); remove it first, or rerun with --force to replace it", destination)
+			return "", fmt.Errorf("skill destination exists but is not a directory (a symlink?); remove it first, or rerun with --force to replace it")
 		}
-		return "", fmt.Errorf("skill already exists at %s and contains different files; rerun with --force to replace it", destination)
+		return "", fmt.Errorf("skill already exists and contains different files; rerun with --force to replace it")
 	}
 
 	parent := filepath.Dir(destination)
