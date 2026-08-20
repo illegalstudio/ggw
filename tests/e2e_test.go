@@ -752,3 +752,139 @@ func TestCLICreateRollsBackOnFailureKeepingBranch(t *testing.T) {
 		t.Fatal("branch feature/fail should still exist after rollback")
 	}
 }
+
+func TestCLISkillsInstallToSelectedTarget(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGW(t, home, cwd, "--json", "skills", "install", "--target", "claude")
+	if err != nil {
+		t.Fatalf("ggw --json skills install failed: %v\n%s", err, out)
+	}
+
+	var payload struct {
+		Name          string `json:"name"`
+		Installations []struct {
+			Target string `json:"target"`
+			Path   string `json:"path"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"installations"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("skills install did not emit valid JSON: %v\n%s", err, out)
+	}
+	if payload.Name != "ggw" {
+		t.Fatalf("name = %q, want %q", payload.Name, "ggw")
+	}
+	if len(payload.Installations) != 1 {
+		t.Fatalf("installations = %d, want 1\n%s", len(payload.Installations), out)
+	}
+	if got := payload.Installations[0]; got.Target != "claude" || got.Status != "installed" || got.Error != "" {
+		t.Fatalf("unexpected installation %+v\n%s", got, out)
+	}
+
+	skillPath := filepath.Join(home, ".claude", "skills", "ggw", "SKILL.md")
+	if _, err := os.Stat(skillPath); err != nil {
+		t.Fatalf("SKILL.md not installed at %s: %v", skillPath, err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".agents", "skills", "ggw")); !os.IsNotExist(err) {
+		t.Fatalf("unselected destination was installed: %v", err)
+	}
+
+	// Reinstalling an untouched copy is a no-op.
+	out, err = runGGW(t, home, cwd, "--json", "skills", "install", "--target", "claude")
+	if err != nil {
+		t.Fatalf("second ggw --json skills install failed: %v\n%s", err, out)
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("second skills install did not emit valid JSON: %v\n%s", err, out)
+	}
+	if got := payload.Installations[0].Status; got != "up-to-date" {
+		t.Fatalf("second install status = %q, want %q\n%s", got, "up-to-date", out)
+	}
+}
+
+func TestCLISkillsInstallRejectsUnknownTarget(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGW(t, home, cwd, "--json", "skills", "install", "--target", "cursor")
+	if err == nil {
+		t.Fatalf("ggw skills install with an unknown target succeeded:\n%s", out)
+	}
+	if !strings.Contains(out, "unknown skill target") {
+		t.Fatalf("unexpected error output:\n%s", out)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "ggw")); !os.IsNotExist(err) {
+		t.Fatalf("a destination was installed despite the error: %v", err)
+	}
+}
+
+func TestCLISkillsInstallReportsConflictPerDestination(t *testing.T) {
+	home := setupHome(t)
+	cwd := t.TempDir()
+
+	out, err := runGGW(t, home, cwd, "--json", "skills", "install", "--target", "agents")
+	if err != nil {
+		t.Fatalf("ggw --json skills install failed: %v\n%s", err, out)
+	}
+
+	skillPath := filepath.Join(home, ".agents", "skills", "ggw", "SKILL.md")
+	if err := os.WriteFile(skillPath, []byte("hand edited\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A conflict on one destination must not fail the command or block the other.
+	out, err = runGGW(t, home, cwd, "--json", "skills", "install")
+	if err != nil {
+		t.Fatalf("ggw --json skills install exited non-zero on a per-item conflict: %v\n%s", err, out)
+	}
+
+	var payload struct {
+		Installations []struct {
+			Target string `json:"target"`
+			Status string `json:"status"`
+			Error  string `json:"error"`
+		} `json:"installations"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("skills install did not emit valid JSON: %v\n%s", err, out)
+	}
+	if len(payload.Installations) != 2 {
+		t.Fatalf("installations = %d, want 2\n%s", len(payload.Installations), out)
+	}
+	if payload.Installations[0].Error == "" {
+		t.Fatalf("modified destination did not report a conflict\n%s", out)
+	}
+	if payload.Installations[1].Error != "" {
+		t.Fatalf("second destination failed: %s\n%s", payload.Installations[1].Error, out)
+	}
+	if got := string(mustReadFile(t, skillPath)); got != "hand edited\n" {
+		t.Fatalf("conflicting destination was overwritten: %q", got)
+	}
+
+	out, err = runGGW(t, home, cwd, "--json", "skills", "install", "--force")
+	if err != nil {
+		t.Fatalf("ggw --json skills install --force failed: %v\n%s", err, out)
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("forced skills install did not emit valid JSON: %v\n%s", err, out)
+	}
+	if got := payload.Installations[0].Status; got != "replaced" {
+		t.Fatalf("forced install status = %q, want %q\n%s", got, "replaced", out)
+	}
+	if got := string(mustReadFile(t, skillPath)); got == "hand edited\n" {
+		t.Fatal("--force did not replace the modified skill")
+	}
+}
+
+func mustReadFile(t *testing.T, path string) []byte {
+	t.Helper()
+
+	contents, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	return contents
+}
