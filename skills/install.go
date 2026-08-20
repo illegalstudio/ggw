@@ -39,6 +39,7 @@ type installMarker struct {
 
 type installedState struct {
 	exists            bool
+	isDir             bool
 	current           bool
 	markerCurrent     bool
 	managedUnmodified bool
@@ -81,6 +82,9 @@ func Install(destination string, replace bool) (InstallStatus, error) {
 		return StatusUnchanged, nil
 	}
 	if state.exists && !state.managedUnmodified && !replace {
+		if !state.isDir {
+			return "", fmt.Errorf("skill destination %s exists but is not a directory (a symlink?); remove it first, or rerun with --force to replace it", destination)
+		}
 		return "", fmt.Errorf("skill already exists at %s and contains different files; rerun with --force to replace it", destination)
 	}
 
@@ -120,8 +124,8 @@ func inspectInstalledSkill(destination, bundledDigest string) (installedState, e
 		return installedState{}, fmt.Errorf("inspect skill destination: %w", err)
 	}
 
-	state := installedState{exists: true}
-	if !info.IsDir() {
+	state := installedState{exists: true, isDir: info.IsDir()}
+	if !state.isDir {
 		return state, nil
 	}
 
@@ -339,7 +343,7 @@ func digestInstalledSkill(destination string) (string, error) {
 		}
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("digest installed skill: %w", err)
 	}
 	return "sha256:" + hex.EncodeToString(digest.Sum(nil)), nil
 }

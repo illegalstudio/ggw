@@ -3,6 +3,7 @@ package skills
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -185,4 +186,60 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatal(err)
 	}
 	return contents
+}
+
+func TestInstallRefusesNonDirectoryDestinationWithoutForce(t *testing.T) {
+	destination := AgentSkillsInstallPath(t.TempDir())
+	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(destination, []byte("not a directory\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Install(destination, false)
+	if err == nil {
+		t.Fatal("expected a conflict for the non-directory destination")
+	}
+	if !strings.Contains(err.Error(), "is not a directory") {
+		t.Fatalf("error = %v, want it to say the destination is not a directory", err)
+	}
+}
+
+// A destination symlinked at an already-installed copy holds byte-identical
+// files, so it must never be described as containing different files.
+func TestInstallDoesNotClaimSymlinkedDestinationDiffers(t *testing.T) {
+	home := t.TempDir()
+	real := AgentSkillsInstallPath(home)
+	if _, err := Install(real, false); err != nil {
+		t.Fatal(err)
+	}
+
+	linked := ClaudeSkillsInstallPath(home)
+	if err := os.MkdirAll(filepath.Dir(linked), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(real, linked); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Install(linked, false)
+	if err == nil {
+		t.Fatal("expected a conflict for the symlinked destination")
+	}
+	if strings.Contains(err.Error(), "contains different files") {
+		t.Fatalf("error falsely claims the contents differ: %v", err)
+	}
+	if !strings.Contains(err.Error(), "is not a directory") {
+		t.Fatalf("error = %v, want it to say the destination is not a directory", err)
+	}
+
+	// The symlink itself must survive a refused install.
+	info, statErr := os.Lstat(linked)
+	if statErr != nil {
+		t.Fatal(statErr)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatal("refused install replaced the symlink")
+	}
 }

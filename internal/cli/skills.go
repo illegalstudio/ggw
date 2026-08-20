@@ -170,7 +170,7 @@ func promptSkillTargets(all []skillTarget) ([]skillTarget, error) {
 		Value(&chosen).
 		Run()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot prompt for skill destinations (use --target to choose them without a prompt): %w", err)
 	}
 	if len(chosen) == 0 {
 		return nil, fmt.Errorf("no skill target selected")
@@ -225,7 +225,7 @@ func printSkillsInstallResult(result skillsInstallResult) {
 
 func init() {
 	skillsInstallCmd.Flags().Bool("force", false, "Replace an existing GGW skill that differs from the bundled version")
-	skillsInstallCmd.Flags().StringArray("target", nil, "Install only to this destination (agents, claude); repeatable")
+	skillsInstallCmd.Flags().StringArray("target", nil, "Install only to this destination (agents, claude); repeatable, not comma-separated")
 	registerSkillTargetCompletion(skillsInstallCmd)
 
 	skillsCmd.AddCommand(skillsInstallCmd)

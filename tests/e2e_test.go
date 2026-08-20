@@ -753,6 +753,32 @@ func TestCLICreateRollsBackOnFailureKeepingBranch(t *testing.T) {
 	}
 }
 
+// skillsInstallPayload mirrors the JSON emitted by `ggw skills install`.
+//
+// Always decode into a fresh value via decodeSkillsInstall: encoding/json
+// reuses existing slice elements and does not clear fields that are absent
+// from the new document, so a reused variable can carry a stale `status` or
+// `error` (both omitempty) into a later assertion and mask a regression.
+type skillsInstallPayload struct {
+	Name          string `json:"name"`
+	Installations []struct {
+		Target string `json:"target"`
+		Path   string `json:"path"`
+		Status string `json:"status"`
+		Error  string `json:"error"`
+	} `json:"installations"`
+}
+
+func decodeSkillsInstall(t *testing.T, out string) skillsInstallPayload {
+	t.Helper()
+
+	var payload skillsInstallPayload
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("skills install did not emit valid JSON: %v\n%s", err, out)
+	}
+	return payload
+}
+
 func TestCLISkillsInstallToSelectedTarget(t *testing.T) {
 	home := setupHome(t)
 	cwd := t.TempDir()
@@ -762,18 +788,7 @@ func TestCLISkillsInstallToSelectedTarget(t *testing.T) {
 		t.Fatalf("ggw --json skills install failed: %v\n%s", err, out)
 	}
 
-	var payload struct {
-		Name          string `json:"name"`
-		Installations []struct {
-			Target string `json:"target"`
-			Path   string `json:"path"`
-			Status string `json:"status"`
-			Error  string `json:"error"`
-		} `json:"installations"`
-	}
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("skills install did not emit valid JSON: %v\n%s", err, out)
-	}
+	payload := decodeSkillsInstall(t, out)
 	if payload.Name != "ggw" {
 		t.Fatalf("name = %q, want %q", payload.Name, "ggw")
 	}
@@ -797,11 +812,12 @@ func TestCLISkillsInstallToSelectedTarget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("second ggw --json skills install failed: %v\n%s", err, out)
 	}
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("second skills install did not emit valid JSON: %v\n%s", err, out)
-	}
-	if got := payload.Installations[0].Status; got != "up-to-date" {
+	second := decodeSkillsInstall(t, out)
+	if got := second.Installations[0].Status; got != "up-to-date" {
 		t.Fatalf("second install status = %q, want %q\n%s", got, "up-to-date", out)
+	}
+	if got := second.Installations[0].Error; got != "" {
+		t.Fatalf("second install reported an error: %q\n%s", got, out)
 	}
 }
 
@@ -813,11 +829,26 @@ func TestCLISkillsInstallRejectsUnknownTarget(t *testing.T) {
 	if err == nil {
 		t.Fatalf("ggw skills install with an unknown target succeeded:\n%s", out)
 	}
-	if !strings.Contains(out, "unknown skill target") {
-		t.Fatalf("unexpected error output:\n%s", out)
+
+	// A command-level failure must arrive as the documented JSON error object,
+	// not as plain text.
+	var errPayload struct {
+		Error string `json:"error"`
 	}
-	if _, err := os.Stat(filepath.Join(home, ".claude", "skills", "ggw")); !os.IsNotExist(err) {
-		t.Fatalf("a destination was installed despite the error: %v", err)
+	if err := json.Unmarshal([]byte(out), &errPayload); err != nil {
+		t.Fatalf("unknown target did not emit valid JSON error: %v\n%s", err, out)
+	}
+	if !strings.Contains(errPayload.Error, "unknown skill target") {
+		t.Fatalf("unexpected JSON error payload: %+v\n%s", errPayload, out)
+	}
+
+	for _, dir := range []string{
+		filepath.Join(home, ".claude", "skills", "ggw"),
+		filepath.Join(home, ".agents", "skills", "ggw"),
+	} {
+		if _, err := os.Stat(dir); !os.IsNotExist(err) {
+			t.Fatalf("%s was installed despite the error: %v", dir, err)
+		}
 	}
 }
 
@@ -841,24 +872,15 @@ func TestCLISkillsInstallReportsConflictPerDestination(t *testing.T) {
 		t.Fatalf("ggw --json skills install exited non-zero on a per-item conflict: %v\n%s", err, out)
 	}
 
-	var payload struct {
-		Installations []struct {
-			Target string `json:"target"`
-			Status string `json:"status"`
-			Error  string `json:"error"`
-		} `json:"installations"`
+	conflict := decodeSkillsInstall(t, out)
+	if len(conflict.Installations) != 2 {
+		t.Fatalf("installations = %d, want 2\n%s", len(conflict.Installations), out)
 	}
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("skills install did not emit valid JSON: %v\n%s", err, out)
-	}
-	if len(payload.Installations) != 2 {
-		t.Fatalf("installations = %d, want 2\n%s", len(payload.Installations), out)
-	}
-	if payload.Installations[0].Error == "" {
+	if conflict.Installations[0].Error == "" {
 		t.Fatalf("modified destination did not report a conflict\n%s", out)
 	}
-	if payload.Installations[1].Error != "" {
-		t.Fatalf("second destination failed: %s\n%s", payload.Installations[1].Error, out)
+	if conflict.Installations[1].Error != "" {
+		t.Fatalf("second destination failed: %s\n%s", conflict.Installations[1].Error, out)
 	}
 	if got := string(mustReadFile(t, skillPath)); got != "hand edited\n" {
 		t.Fatalf("conflicting destination was overwritten: %q", got)
@@ -868,11 +890,12 @@ func TestCLISkillsInstallReportsConflictPerDestination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ggw --json skills install --force failed: %v\n%s", err, out)
 	}
-	if err := json.Unmarshal([]byte(out), &payload); err != nil {
-		t.Fatalf("forced skills install did not emit valid JSON: %v\n%s", err, out)
-	}
-	if got := payload.Installations[0].Status; got != "replaced" {
+	forced := decodeSkillsInstall(t, out)
+	if got := forced.Installations[0].Status; got != "replaced" {
 		t.Fatalf("forced install status = %q, want %q\n%s", got, "replaced", out)
+	}
+	if got := forced.Installations[0].Error; got != "" {
+		t.Fatalf("forced install reported an error: %q\n%s", got, out)
 	}
 	if got := string(mustReadFile(t, skillPath)); got == "hand edited\n" {
 		t.Fatal("--force did not replace the modified skill")
