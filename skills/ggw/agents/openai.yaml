@@ -1,0 +1,4 @@
+interface:
+  display_name: "GGW"
+  short_description: "Create, inspect, and navigate git worktrees stored in one predictable location"
+  default_prompt: "Use $ggw to create and manage git worktrees for this repository safely."

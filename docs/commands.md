@@ -11,6 +11,7 @@ JSON output follows these conventions:
 - `list` emits `{ "worktrees": [...] }`.
 - `create`, `pr`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
 - `exec` does not support `--json` because it streams another process through stdin, stdout, and stderr.
+- `skills install` emits `{ "name": ..., "installations": [...] }`, never prompts, and reports per-destination failures in each item's `error` field without changing the exit code.
 
 ## `ggw list`
 
@@ -193,3 +194,70 @@ post_create:     # shell commands run in the new worktree, in order
 Provisioning runs in the fixed order copy → symlink → post_create. If any step fails, the new worktree is removed (the branch is kept) so you can fix the issue and re-run. Pass `--bare` to `create` or `pr` to skip provisioning for a single run.
 
 See [Project Provisioning](configuration.md#project-provisioning-ggwyaml) for the full schema reference.
+
+## `ggw skills install`
+
+Install the AI agent skill bundled with the `ggw` binary, so coding agents know
+how to drive the CLI safely.
+
+```bash
+# Interactive: multi-select menu, both destinations preselected
+ggw skills install
+
+# Non-interactive: one destination
+ggw skills install --target claude
+
+# Non-interactive: every destination, machine-readable result
+ggw --json skills install
+```
+
+| Flag | Description |
+|------|-------------|
+| `--target` | Install only to this destination (`agents`, `claude`). Repeatable. Skips the menu. |
+| `--force` | Replace an existing skill that differs from the bundled version. |
+
+Destinations:
+
+- `~/.agents/skills/ggw` (`agents`) — Codex and other Agent Skills hosts
+- `~/.claude/skills/ggw` (`claude`) — Claude Code
+
+The two destinations are installed independently: a conflict in one is reported
+on that destination and does not stop the other.
+
+### Behavior
+
+Reinstalling is safe. ggw records a SHA-256 digest of what it installed in a
+`.ggw-managed.json` marker inside the destination, and compares it against both
+the bundled skill and the files on disk:
+
+| Situation | Status | Needs `--force` |
+|---|---|---|
+| Destination does not exist | `installed` | no |
+| Files match the bundled skill | `up-to-date` | no |
+| ggw installed it and you have not edited it | `updated` | no |
+| You edited the files, or the directory was not created by ggw | `replaced` | **yes** |
+
+Installation is atomic: contents are staged in a sibling temporary directory and
+moved into place, and the previous copy is kept until the move succeeds.
+
+The bundled skill is not upgraded automatically. After `brew upgrade ggw` (or any
+other upgrade), re-run `ggw skills install` to refresh it; the command is
+idempotent and reports `updated`.
+
+### JSON output
+
+`ggw --json skills install` never prompts. Without `--target` it installs every
+destination. It emits:
+
+```json
+{
+  "name": "ggw",
+  "installations": [
+    { "target": "agents", "path": "/Users/me/.agents/skills/ggw", "status": "installed" },
+    { "target": "claude", "path": "/Users/me/.claude/skills/ggw", "error": "skill already exists at ... rerun with --force to replace it" }
+  ]
+}
+```
+
+Per-destination failures appear in `error` and do not change the exit code. An
+unknown `--target` is a command-level error and does exit non-zero.

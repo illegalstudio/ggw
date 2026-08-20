@@ -143,8 +143,16 @@ jobs:
               bin.install "ggw"
             end
 
+            def caveats
+              <<~EOS
+                Install the bundled GGW skill for AI agents with:
+                  ggw skills install
+              EOS
+            end
+
             test do
               assert_match version.to_s, shell_output("#{bin}/ggw --version")
+              assert_match "skills", shell_output("#{bin}/ggw --help")
             end
           end
           EOF
