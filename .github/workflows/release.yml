@@ -88,11 +88,23 @@ jobs:
             gh release upload "$TAG" "$CHECKSUMS" --repo "$GITHUB_REPOSITORY"
           fi
 
+      # Short-lived installation token scoped to the tap repository, minted from
+      # the Illegal Bot GitHub App. Pinned to a full commit SHA because this step
+      # receives the App private key. Replaces the shared HOMEBREW_TAP_TOKEN PAT.
+      - name: Mint Illegal Bot token for the tap
+        id: tap-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ secrets.ILLEGAL_BOT_APP_ID }}
+          private-key: ${{ secrets.ILLEGAL_BOT_PRIVATE_KEY }}
+          owner: illegalstudio
+          repositories: homebrew-tap
+
       # Generate the Homebrew formula and push it to the tap repository.
       # Runs after notarization so the sha256 values match the final archives.
       - name: Update Homebrew formula
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ steps.tap-token.outputs.token }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           VERSION="${TAG#v}"
