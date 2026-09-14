@@ -6,15 +6,17 @@ import (
 	"strings"
 
 	"github.com/illegalstudio/ggw/internal/ui"
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/workspace"
 
 	"github.com/spf13/cobra"
 )
 
 type listEntry struct {
+	Kind        string `json:"kind"`
 	Path        string `json:"path"`
 	Head        string `json:"head,omitempty"`
 	Branch      string `json:"branch,omitempty"`
+	Main        bool   `json:"main,omitempty"`
 	Detached    bool   `json:"detached,omitempty"`
 	Locked      bool   `json:"locked,omitempty"`
 	Bare        bool   `json:"bare,omitempty"`
@@ -28,9 +30,11 @@ type listEntry struct {
 
 var listCmd = &cobra.Command{
 	Use:     "list",
-	Short:   "List worktrees of the current repository, with git status",
+	Short:   "List workspaces of the current repository, with git status",
 	GroupID: GroupWorktree,
 	Args:    cobra.NoArgs,
+	Long: `List every workspace of the current repository: its git worktrees and its
+copy-on-write snapshots, which are tagged [cow].`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fullPath, _ := cmd.Flags().GetBool("full-path")
 
@@ -38,28 +42,27 @@ var listCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		root, err := worktree.RepoRoot(cwd)
+		ctx, err := workspace.Resolve(cwd)
 		if err != nil {
 			return err
 		}
 
-		raw, err := worktree.List(root)
+		raw, err := workspace.List(ctx)
 		if err != nil {
 			return err
 		}
 
-		handles := worktree.Handles(raw)
-		mainPath := ""
-		if len(raw) > 0 {
-			mainPath = raw[0].Path
-		}
+		handles := workspace.Handles(raw)
+		mainPath := ctx.MainPath
 
 		entries := make([]listEntry, len(raw))
 		for i, w := range raw {
 			entries[i] = listEntry{
+				Kind:     string(w.Kind),
 				Path:     w.Path,
 				Head:     w.Head,
 				Branch:   w.Branch,
+				Main:     w.Main,
 				Detached: w.Detached,
 				Locked:   w.Locked,
 				Bare:     w.Bare,
@@ -68,7 +71,7 @@ var listCmd = &cobra.Command{
 			if w.Bare {
 				continue
 			}
-			st, err := worktree.GetStatus(w.Path)
+			st, err := workspace.Status(w)
 			if err != nil {
 				entries[i].StatusError = err.Error()
 				continue
@@ -84,23 +87,24 @@ var listCmd = &cobra.Command{
 		}
 
 		if len(entries) == 0 {
-			fmt.Println(ui.Info.Render("No worktrees registered."))
+			fmt.Println(ui.Info.Render("No workspaces registered."))
 			return nil
 		}
 
-		labels := make([]string, len(entries))
+		// The label is the handle, never the raw branch: a branch shared by two
+		// workspaces names neither, and printing it would offer a name that
+		// `ggw cd` and `ggw delete` then refuse to resolve.
 		maxLabel := 0
-		for i := range entries {
-			labels[i] = labelFor(entries[i], handles[i])
-			if l := len(labels[i]); l > maxLabel {
+		for _, h := range handles {
+			if l := len(h); l > maxLabel {
 				maxLabel = l
 			}
 		}
 
-		fmt.Println(ui.Title.Render("Worktrees"))
+		fmt.Println(ui.Title.Render("Workspaces"))
 		fmt.Println()
 		for i, e := range entries {
-			pad := strings.Repeat(" ", maxLabel-len(labels[i]))
+			pad := strings.Repeat(" ", maxLabel-len(handles[i]))
 			suffix := statusSuffix(e)
 			tags := ""
 			if e.Branch == "" {
@@ -110,6 +114,9 @@ var listCmd = &cobra.Command{
 				}
 				tags += " " + ui.Muted.Render(kind)
 			}
+			if e.Kind == string(workspace.KindCoW) {
+				tags += " " + ui.Muted.Render("[cow]")
+			}
 			if e.External {
 				tags += " " + ui.Muted.Render("[external]")
 			}
@@ -118,7 +125,7 @@ var listCmd = &cobra.Command{
 			}
 			fmt.Printf("  %s %s%s → %s%s%s\n",
 				ui.Success.Render("●"),
-				ui.Branch.Render(labels[i]),
+				ui.Branch.Render(handles[i]),
 				pad,
 				ui.Path.Render(renderPath(e.Path, fullPath)),
 				suffix,
@@ -140,13 +147,6 @@ func renderPath(p string, full bool) string {
 		return displayPath(p)
 	}
 	return compactPath(p)
-}
-
-func labelFor(e listEntry, handle string) string {
-	if e.Branch != "" {
-		return e.Branch
-	}
-	return handle
 }
 
 func statusSuffix(e listEntry) string {

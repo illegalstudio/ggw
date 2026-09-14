@@ -1,4 +1,4 @@
-package worktree
+package workspace
 
 import (
 	"reflect"
@@ -8,12 +8,12 @@ import (
 func TestHandles(t *testing.T) {
 	tests := []struct {
 		name string
-		list []Worktree
+		list []Workspace
 		want []string
 	}{
 		{
 			name: "branch worktrees use the branch name",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/Volumes/x/elephc", Branch: "main"},
 				{Path: "/data/worktrees/org/elephc/feature-x", Branch: "feature/x"},
 			},
@@ -21,7 +21,7 @@ func TestHandles(t *testing.T) {
 		},
 		{
 			name: "detached with unique basename uses the basename",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/Volumes/x/elephc", Branch: "main"},
 				{Path: "/home/u/scratch", Detached: true},
 			},
@@ -29,7 +29,7 @@ func TestHandles(t *testing.T) {
 		},
 		{
 			name: "detached basename colliding with main grows to be unique",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/Volumes/x/elephc", Branch: "main"},
 				{Path: "/home/u/.codex/worktrees/0e21/elephc", Detached: true},
 			},
@@ -37,7 +37,7 @@ func TestHandles(t *testing.T) {
 		},
 		{
 			name: "two colliding detached worktrees both grow",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/a/0e21/elephc", Detached: true},
 				{Path: "/b/9f33/elephc", Detached: true},
 			},
@@ -45,7 +45,7 @@ func TestHandles(t *testing.T) {
 		},
 		{
 			name: "detached basename equal to a branch name is avoided",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/repo", Branch: "elephc"},
 				{Path: "/home/u/0e21/elephc", Detached: true},
 			},
@@ -53,15 +53,41 @@ func TestHandles(t *testing.T) {
 		},
 		{
 			name: "bare worktree falls back to a path-based handle",
-			list: []Worktree{
+			list: []Workspace{
 				{Path: "/srv/project", Branch: "main"},
 				{Path: "/srv/project/.bare", Bare: true},
 			},
 			want: []string{"main", ".bare"},
 		},
 		{
+			name: "a branch shared by two workspaces falls back to paths",
+			list: []Workspace{
+				{Kind: KindCoW, Path: "/wt/acme/api/feature-x", Branch: "feature/x"},
+				{Kind: KindCoW, Path: "/wt/acme/api/review", Branch: "feature/x"},
+			},
+			want: []string{"feature-x", "review"},
+		},
+		{
+			name: "only the shared branch loses its name",
+			list: []Workspace{
+				{Path: "/repo", Branch: "main"},
+				{Kind: KindCoW, Path: "/wt/acme/api/feature-x", Branch: "feature/x"},
+				{Kind: KindCoW, Path: "/wt/acme/api/review", Branch: "feature/x"},
+			},
+			want: []string{"main", "feature-x", "review"},
+		},
+		{
+			name: "a path handle never shadows a branch name",
+			list: []Workspace{
+				{Path: "/repo", Branch: "review"},
+				{Kind: KindCoW, Path: "/wt/acme/api/feature-x", Branch: "feature/x"},
+				{Kind: KindCoW, Path: "/wt/acme/api/review", Branch: "feature/x"},
+			},
+			want: []string{"review", "feature-x", "api/review"},
+		},
+		{
 			name: "empty list returns empty handles",
-			list: []Worktree{},
+			list: []Workspace{},
 			want: []string{},
 		},
 	}

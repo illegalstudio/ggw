@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/layout"
 )
 
 var (
@@ -37,7 +37,7 @@ func resolveHome() {
 
 func resolveWorktreesBase() {
 	wtBaseOnce.Do(func() {
-		b, err := worktree.WorktreesBase()
+		b, err := layout.Base()
 		if err != nil || b == "" {
 			return
 		}
@@ -78,9 +78,9 @@ func displayPath(p string) string {
 	return p
 }
 
-// isExternalPath reports whether a worktree was created outside ggw: it is
-// neither the main worktree nor located under the ggw-managed worktrees base.
-// Used to tag such worktrees (e.g. a Codex `--detach` worktree) as [external].
+// isExternalPath reports whether a workspace was created outside ggw: it is
+// neither the main worktree nor located under the ggw-managed base directory.
+// Used to tag such workspaces (e.g. a Codex `--detach` worktree) as [external].
 func isExternalPath(p, mainPath string) bool {
 	if p == mainPath {
 		return false
@@ -103,7 +103,7 @@ func isExternalPath(p, mainPath string) bool {
 }
 
 // compactPath is a stronger version of displayPath used by `ggw list` only:
-// for paths under the ggw worktrees base, the entire shared prefix becomes
+// for paths under the ggw base directory, the entire shared prefix becomes
 // "[...]"; everything else falls back to tildification.
 //
 //	~/.local/share/worktrees/acme/api/feature-x  →  [...]/acme/api/feature-x

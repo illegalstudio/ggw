@@ -14,9 +14,14 @@ import (
 
 // Config is the ggw configuration.
 type Config struct {
-	// BaseDir is the directory under which all worktrees live, nested as
+	// BaseDir is the directory under which all workspaces live, nested as
 	// <BaseDir>/<org>/<repo>/<branch-slug>. Empty means "use the default".
 	BaseDir string `mapstructure:"base_dir"`
+	// Mode is the kind of workspace `ggw create` makes by default:
+	// "worktree" or "cow". Empty means "use the default". It is kept as a
+	// string here and validated by the caller, so this package stays free of
+	// any dependency on the workspace layer it configures.
+	Mode string `mapstructure:"mode"`
 }
 
 // ConfigPath returns the path to the ggw config file: ~/.config/ggw/config.yaml.
@@ -65,7 +70,24 @@ func Load() (*Config, error) {
 	return &cfg, nil
 }
 
-// BaseDir returns the configured worktrees base directory (~ expanded) and
+// Mode returns the configured default workspace mode and whether it is set. A
+// missing config file or an empty mode yields ("", false, nil). The value is
+// not validated here — see workspace.ParseKind.
+func Mode() (string, bool, error) {
+	cfg, err := Load()
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	if cfg.Mode == "" {
+		return "", false, nil
+	}
+	return cfg.Mode, true, nil
+}
+
+// BaseDir returns the configured workspaces base directory (~ expanded) and
 // whether it is set. A missing config file or an empty base_dir yields
 // ("", false, nil); a malformed config yields ("", false, err).
 func BaseDir() (string, bool, error) {
@@ -88,9 +110,18 @@ func BaseDir() (string, bool, error) {
 func WriteDefault(path, seedBaseDir string) error {
 	content := fmt.Sprintf(`# GGW configuration
 #
-# base_dir: directory under which all worktrees live, nested as
+# base_dir: directory under which all workspaces live, nested as
 # <base_dir>/<org>/<repo>/<branch-slug>. A leading ~ is expanded to $HOME.
 base_dir: %s
+
+# mode: what `+"`ggw create`"+` makes by default.
+#
+#   worktree  a git worktree (git tracks it; untracked files are not carried over)
+#   cow       a copy-on-write snapshot of the repository, untracked files included
+#             (needs btrfs, XFS with reflink=1, bcachefs or APFS)
+#
+# Override per run with --wt or --cow.
+mode: worktree
 `, seedBaseDir)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

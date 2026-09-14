@@ -6,23 +6,23 @@ import (
 	osexec "os/exec"
 
 	"github.com/illegalstudio/ggw/internal/ui"
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/workspace"
 
 	"github.com/spf13/cobra"
 )
 
 var execCmd = &cobra.Command{
 	Use:                   "exec [name] -- <cmd>...",
-	Short:                 "Run a command inside a worktree",
+	Short:                 "Run a command inside a workspace",
 	GroupID:               GroupWorktree,
-	ValidArgsFunction:     worktreeCompletion,
+	ValidArgsFunction:     workspaceCompletion,
 	DisableFlagsInUseLine: true,
-	Long: `Run an arbitrary command inside a worktree's directory.
+	Long: `Run an arbitrary command inside a workspace's directory.
 
 Everything after "--" is passed to the command verbatim.
 
   ggw exec feature/login -- npm install
-  ggw exec -- ls -la                  # selector picks the worktree
+  ggw exec -- ls -la                  # selector picks the workspace
 
 Stdin/stdout/stderr are piped through. The command's exit code is
 propagated as ggw's exit code.`,
@@ -50,32 +50,32 @@ propagated as ggw's exit code.`,
 		if err != nil {
 			return err
 		}
-		root, err := worktree.RepoRoot(cwd)
+		ctx, err := workspace.Resolve(cwd)
 		if err != nil {
 			return err
 		}
 
-		list, err := worktree.List(root)
+		list, err := workspace.List(ctx)
 		if err != nil {
 			return err
 		}
 		if len(list) == 0 {
-			return fmt.Errorf("no worktrees registered for this repository")
+			return fmt.Errorf("no workspaces registered for this repository")
 		}
 
 		query := ""
 		if len(before) == 1 {
 			query = before[0]
 		}
-		wt, err := resolveOneWorktree(list, query)
+		ws, err := resolveOneWorkspace(list, query)
 		if err != nil {
 			return err
 		}
 
-		fmt.Fprintf(os.Stderr, "%s in %s\n", ui.Muted.Render("ggw exec"), ui.Path.Render(displayPath(wt.Path)))
+		fmt.Fprintf(os.Stderr, "%s in %s\n", ui.Muted.Render("ggw exec"), ui.Path.Render(displayPath(ws.Path)))
 
 		c := osexec.Command(after[0], after[1:]...)
-		c.Dir = wt.Path
+		c.Dir = ws.Path
 		c.Stdin = os.Stdin
 		c.Stdout = os.Stdout
 		c.Stderr = os.Stderr

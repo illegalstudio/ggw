@@ -24,9 +24,13 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Long: `ggw — git worktrees, ergonomic.
 
-Stores all worktrees of all your repos in a single predictable location:
+Stores every workspace of every repo in a single predictable location:
 
   ~/.local/share/worktrees/<org>/<repo>/<branch-slug>/
+
+A workspace is either a git worktree or a copy-on-write snapshot of the
+repository, which carries your untracked files along at no disk cost. Pick one
+per run with --cow or --wt, or set "mode" in ~/.config/ggw/config.yaml.
 
 Use "ggw <command> --help" for details on any command.`,
 }
@@ -41,7 +45,7 @@ func Execute() {
 	rootCmd.SilenceUsage = jsonFlagRequested(os.Args[1:])
 
 	rootCmd.AddGroup(
-		&cobra.Group{ID: GroupWorktree, Title: "Worktree Operations:"},
+		&cobra.Group{ID: GroupWorktree, Title: "Workspace Operations:"},
 		&cobra.Group{ID: GroupShell, Title: "Shell Integration:"},
 		&cobra.Group{ID: GroupConfig, Title: "Configuration:"},
 	)
