@@ -2,19 +2,20 @@ package cli
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/workspace"
 )
 
-func TestWorktreeCompletionItemsSkipsGeneratedBranchSlug(t *testing.T) {
+func TestWorkspaceCompletionItemsSkipsGeneratedBranchSlug(t *testing.T) {
 	root := "/repo"
-	list := []worktree.Worktree{
+	list := []workspace.Workspace{
 		{Path: root, Branch: "main"},
 		{Path: "/worktrees/feature-some", Branch: "feature/some"},
 	}
 
-	got := worktreeCompletionItems(list, root, "")
+	got := workspaceCompletionItems(list, root, "")
 	want := []string{"main", "feature/some"}
 
 	if !reflect.DeepEqual(got, want) {
@@ -22,13 +23,13 @@ func TestWorktreeCompletionItemsSkipsGeneratedBranchSlug(t *testing.T) {
 	}
 }
 
-func TestWorktreeCompletionItemsKeepsCustomBasename(t *testing.T) {
+func TestWorkspaceCompletionItemsKeepsCustomBasename(t *testing.T) {
 	root := "/repo"
-	list := []worktree.Worktree{
+	list := []workspace.Workspace{
 		{Path: "/worktrees/review-copy", Branch: "feature/some"},
 	}
 
-	got := worktreeCompletionItems(list, root, "")
+	got := workspaceCompletionItems(list, root, "")
 	want := []string{"feature/some", "review-copy"}
 
 	if !reflect.DeepEqual(got, want) {
@@ -36,14 +37,14 @@ func TestWorktreeCompletionItemsKeepsCustomBasename(t *testing.T) {
 	}
 }
 
-func TestWorktreeCompletionItemsSuggestsHandleForDetached(t *testing.T) {
+func TestWorkspaceCompletionItemsSuggestsHandleForDetached(t *testing.T) {
 	root := "/Volumes/x/elephc"
-	list := []worktree.Worktree{
+	list := []workspace.Workspace{
 		{Path: root, Branch: "main"},
 		{Path: "/home/u/.codex/worktrees/0e21/elephc", Detached: true},
 	}
 
-	got := worktreeCompletionItems(list, root, "")
+	got := workspaceCompletionItems(list, root, "")
 	want := []string{"main", "0e21/elephc"}
 
 	if !reflect.DeepEqual(got, want) {
@@ -51,8 +52,26 @@ func TestWorktreeCompletionItemsSuggestsHandleForDetached(t *testing.T) {
 	}
 }
 
-func TestCreateCompletionItemsExcludesBranchesWithWorktrees(t *testing.T) {
-	list := []worktree.Worktree{
+// Two copy-on-write workspaces on one branch (via --as) are only tellable
+// apart by their directory, so both basenames have to be suggested even though
+// one of them matches the branch slug.
+func TestWorkspaceCompletionItemsKeepsBasenamesForSharedBranch(t *testing.T) {
+	root := "/repo"
+	list := []workspace.Workspace{
+		{Kind: workspace.KindCoW, Path: "/worktrees/feature-some", Branch: "feature/some"},
+		{Kind: workspace.KindCoW, Path: "/worktrees/review", Branch: "feature/some"},
+	}
+
+	got := workspaceCompletionItems(list, root, "")
+	want := []string{"feature/some", "feature-some", "feature/some", "review"}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestCreateCompletionItemsExcludesBranchesWithWorkspaces(t *testing.T) {
+	list := []workspace.Workspace{
 		{Path: "/repo", Branch: "main"},
 		{Path: "/worktrees/feature-x", Branch: "feature/x"},
 	}
@@ -67,7 +86,7 @@ func TestCreateCompletionItemsExcludesBranchesWithWorktrees(t *testing.T) {
 }
 
 func TestCreateCompletionItemsIncludesRemoteWithoutLocalCounterpart(t *testing.T) {
-	list := []worktree.Worktree{
+	list := []workspace.Workspace{
 		{Path: "/repo", Branch: "main"},
 	}
 	local := []string{"main", "feature/x"}
@@ -82,7 +101,7 @@ func TestCreateCompletionItemsIncludesRemoteWithoutLocalCounterpart(t *testing.T
 }
 
 func TestCreateCompletionItemsFiltersByPrefix(t *testing.T) {
-	list := []worktree.Worktree{{Path: "/repo", Branch: "main"}}
+	list := []workspace.Workspace{{Path: "/repo", Branch: "main"}}
 	local := []string{"main", "feature/x", "feature/y", "bugfix/z"}
 
 	got := createCompletionItems(local, nil, list, "feat")
@@ -93,13 +112,13 @@ func TestCreateCompletionItemsFiltersByPrefix(t *testing.T) {
 	}
 }
 
-func TestResolveOneWorktreeMatchesHandleNotMain(t *testing.T) {
-	list := []worktree.Worktree{
+func TestResolveOneWorkspaceMatchesHandleNotMain(t *testing.T) {
+	list := []workspace.Workspace{
 		{Path: "/Volumes/x/elephc", Branch: "main"},
 		{Path: "/home/u/.codex/worktrees/0e21/elephc", Detached: true},
 	}
 
-	got, err := resolveOneWorktree(list, "0e21/elephc")
+	got, err := resolveOneWorkspace(list, "0e21/elephc")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -109,11 +128,38 @@ func TestResolveOneWorktreeMatchesHandleNotMain(t *testing.T) {
 
 	// The bare basename "elephc" is ambiguous: it must fall through to the
 	// basename match and resolve to the main worktree, not the detached one.
-	gotMain, err := resolveOneWorktree(list, "elephc")
+	gotMain, err := resolveOneWorkspace(list, "elephc")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if gotMain.Path != "/Volumes/x/elephc" {
 		t.Fatalf("query %q resolved to %q, want the main worktree", "elephc", gotMain.Path)
+	}
+}
+
+// A branch shared by two workspaces identifies neither, so it must not resolve
+// to whichever happens to come first.
+func TestResolveOneWorkspaceRefusesAmbiguousBranch(t *testing.T) {
+	jsonOutput = true
+	t.Cleanup(func() { jsonOutput = false })
+
+	list := []workspace.Workspace{
+		{Kind: workspace.KindCoW, Path: "/worktrees/feature-x", Branch: "feature/x"},
+		{Kind: workspace.KindCoW, Path: "/worktrees/review", Branch: "feature/x"},
+	}
+
+	if _, err := resolveOneWorkspace(list, "feature/x"); err == nil {
+		t.Fatal("expected an ambiguous branch to refuse to resolve")
+	} else if !strings.Contains(err.Error(), "Multiple workspaces are on") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Each is still addressable by its directory name.
+	got, err := resolveOneWorkspace(list, "review")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Path != "/worktrees/review" {
+		t.Fatalf("resolved to %q, want /worktrees/review", got.Path)
 	}
 }

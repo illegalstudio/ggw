@@ -5,15 +5,15 @@ import (
 	"os"
 
 	"github.com/illegalstudio/ggw/internal/config"
+	"github.com/illegalstudio/ggw/internal/layout"
 	"github.com/illegalstudio/ggw/internal/ui"
-	"github.com/illegalstudio/ggw/internal/worktree"
 
 	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
 	Use:     "init",
-	Short:   "Create the global config file seeded with this system's default worktrees directory",
+	Short:   "Create the global config file seeded with this system's defaults",
 	GroupID: GroupConfig,
 	Args:    cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -25,8 +25,8 @@ var initCmd = &cobra.Command{
 			return fmt.Errorf("config file already exists at %s", path)
 		}
 
-		// No config exists yet, so WorktreesBase returns this system's default.
-		base, err := worktree.WorktreesBase()
+		// No config exists yet, so Base returns this system's default.
+		base, err := layout.Base()
 		if err != nil {
 			return err
 		}

@@ -42,8 +42,8 @@ The wrapper intercepts only `ggw cd`. Every other subcommand is passed through t
 Completion includes:
 
 - command names, for example `ggw de<TAB>` completing to `delete`;
-- branch names for worktree commands, for example `feature/login`;
-- custom worktree directory names when they do not simply duplicate the branch slug.
+- branch names for workspace commands, for example `feature/login`;
+- custom workspace directory names when they do not simply duplicate the branch slug.
 
 Generated directory slugs such as `feature-login` are not suggested when the branch name is already `feature/login`.
 

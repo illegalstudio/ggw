@@ -3,10 +3,10 @@ package worktree
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
+
+	"github.com/illegalstudio/ggw/internal/layout"
 )
 
 // Worktree describes a single entry from `git worktree list --porcelain`.
@@ -17,6 +17,20 @@ type Worktree struct {
 	Detached bool   `json:"detached,omitempty"`
 	Locked   bool   `json:"locked,omitempty"`
 	Bare     bool   `json:"bare,omitempty"`
+}
+
+// MainWorktree returns the path of the repository's main worktree, which git
+// always reports first. Every linked worktree of a repo resolves to the same
+// answer, so it is the canonical identity of a repository on disk.
+func MainWorktree(repoPath string) (string, error) {
+	list, err := List(repoPath)
+	if err != nil {
+		return "", err
+	}
+	if len(list) == 0 {
+		return "", fmt.Errorf("no worktrees found for %s", repoPath)
+	}
+	return list[0].Path, nil
 }
 
 // List returns all worktrees registered for the repo containing repoPath.
@@ -67,15 +81,15 @@ func parseList(s string) []Worktree {
 	return result
 }
 
-// branchExistsLocal reports whether `branch` resolves to a local ref.
-func branchExistsLocal(repoPath, branch string) bool {
+// BranchExistsLocal reports whether `branch` resolves to a local ref.
+func BranchExistsLocal(repoPath, branch string) bool {
 	cmd := exec.Command("git", "-C", repoPath, "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
 	return cmd.Run() == nil
 }
 
-// remoteBranchRef returns the cached remote ref (e.g. "origin/feature/x") for
+// RemoteBranchRef returns the cached remote ref (e.g. "origin/feature/x") for
 // `branch` if it exists locally as a remote-tracking ref. Empty string if not.
-func remoteBranchRef(repoPath, branch string) string {
+func RemoteBranchRef(repoPath, branch string) string {
 	candidate := "refs/remotes/origin/" + branch
 	cmd := exec.Command("git", "-C", repoPath, "show-ref", "--verify", "--quiet", candidate)
 	if cmd.Run() == nil {
@@ -124,6 +138,16 @@ func RemoteBranches(repoPath string) ([]string, error) {
 	return branches, nil
 }
 
+// localBranchRefs returns the full refnames of every local branch. Full names
+// avoid the branch/tag ambiguity a short name can carry.
+func localBranchRefs(repoPath string) []string {
+	out, err := exec.Command("git", "-C", repoPath, "for-each-ref", "--format=%(refname)", "refs/heads").Output()
+	if err != nil {
+		return nil
+	}
+	return nonEmptyLines(string(out))
+}
+
 func nonEmptyLines(s string) []string {
 	var out []string
 	for _, line := range strings.Split(s, "\n") {
@@ -149,16 +173,16 @@ type CreateOptions struct {
 //   - else if a tracking ref `origin/<branch>` exists → create a tracking branch
 //   - else → create a new branch from opts.From (or HEAD)
 func Create(opts CreateOptions) error {
-	if err := prepareDestination(opts.DestPath); err != nil {
+	if err := layout.EnsureFreeDestination(opts.DestPath); err != nil {
 		return err
 	}
 
 	args := []string{"-C", opts.RepoPath, "worktree", "add"}
 	switch {
-	case branchExistsLocal(opts.RepoPath, opts.Branch):
+	case BranchExistsLocal(opts.RepoPath, opts.Branch):
 		args = append(args, opts.DestPath, opts.Branch)
-	case remoteBranchRef(opts.RepoPath, opts.Branch) != "":
-		args = append(args, "--track", "-b", opts.Branch, opts.DestPath, remoteBranchRef(opts.RepoPath, opts.Branch))
+	case RemoteBranchRef(opts.RepoPath, opts.Branch) != "":
+		args = append(args, "--track", "-b", opts.Branch, opts.DestPath, RemoteBranchRef(opts.RepoPath, opts.Branch))
 	default:
 		base := opts.From
 		if base == "" {
@@ -178,7 +202,7 @@ func Create(opts CreateOptions) error {
 
 // CreateDetached creates a detached worktree at destPath from ref.
 func CreateDetached(repoPath, destPath, ref string) error {
-	if err := prepareDestination(destPath); err != nil {
+	if err := layout.EnsureFreeDestination(destPath); err != nil {
 		return err
 	}
 	if ref == "" {
@@ -205,16 +229,6 @@ func CurrentBranch(repoPath string) (string, error) {
 		return "", fmt.Errorf("worktree at %s is detached", repoPath)
 	}
 	return branch, nil
-}
-
-func prepareDestination(destPath string) error {
-	if _, err := os.Stat(destPath); err == nil {
-		return fmt.Errorf("path already exists: %s", destPath)
-	}
-	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
-		return fmt.Errorf("cannot create parent directory: %w", err)
-	}
-	return nil
 }
 
 // Status captures the per-worktree git state shown by `ggw list`.
@@ -287,4 +301,108 @@ func gitError(label string, err error) error {
 		}
 	}
 	return fmt.Errorf("%s failed: %w", label, err)
+}
+
+// HeadInfo reports the HEAD commit and checked-out branch of the repository at
+// repoPath. A detached HEAD yields an empty branch; a repository without
+// commits yields both empty. Errors are folded into empty values on purpose —
+// this is used while listing many workspaces, where one unreadable repo must
+// not fail the whole listing.
+func HeadInfo(repoPath string) (head, branch string) {
+	if out, err := exec.Command("git", "-C", repoPath, "rev-parse", "HEAD").Output(); err == nil {
+		head = strings.TrimSpace(string(out))
+	}
+	if out, err := exec.Command("git", "-C", repoPath, "branch", "--show-current").Output(); err == nil {
+		branch = strings.TrimSpace(string(out))
+	}
+	return head, branch
+}
+
+// CheckoutOptions configures Checkout.
+type CheckoutOptions struct {
+	RepoPath string // repository to check out in
+	Branch   string // branch name (passed verbatim to git)
+	From     string // optional base ref; only used when creating a new branch
+}
+
+// Checkout switches the repository at opts.RepoPath onto opts.Branch, applying
+// the same branch resolution as Create: an existing local branch is checked
+// out, an `origin/<branch>` tracking ref becomes a new tracking branch, and
+// anything else is a new branch off opts.From (or HEAD).
+//
+// It is Create's counterpart for copy-on-write workspaces, where the workspace
+// directory already exists and only its HEAD has to move.
+func Checkout(opts CheckoutOptions) error {
+	args := []string{"-C", opts.RepoPath, "checkout"}
+	switch {
+	case BranchExistsLocal(opts.RepoPath, opts.Branch):
+		args = append(args, opts.Branch)
+	case RemoteBranchRef(opts.RepoPath, opts.Branch) != "":
+		args = append(args, "--track", "-b", opts.Branch, RemoteBranchRef(opts.RepoPath, opts.Branch))
+	default:
+		base := opts.From
+		if base == "" {
+			base = "HEAD"
+		}
+		args = append(args, "-b", opts.Branch, base)
+	}
+
+	cmd := exec.Command("git", args...)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git checkout %s failed: %w: %s", opts.Branch, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// HasRemote reports whether the repository at repoPath already has a remote
+// called name.
+func HasRemote(repoPath, name string) bool {
+	return exec.Command("git", "-C", repoPath, "remote", "get-url", name).Run() == nil
+}
+
+// AddRemote adds a remote called name pointing at url.
+func AddRemote(repoPath, name, url string) error {
+	cmd := exec.Command("git", "-C", repoPath, "remote", "add", name, url)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("git remote add %s failed: %w: %s", name, err, strings.TrimSpace(stderr.String()))
+	}
+	return nil
+}
+
+// UnpushedCommits counts the commits on HEAD that exist nowhere but this
+// repository — the work that would be lost if it were deleted.
+//
+// Commits reachable from a remote-tracking ref are safe, and so are commits
+// reachable from another local branch: a copy-on-write workspace inherits every
+// branch of the repository it was snapshotted from, so the history it starts
+// out with still lives in the original. Only what was committed on top of that
+// is genuinely at risk.
+func UnpushedCommits(repoPath string) (int, error) {
+	// A repository with no commits has no HEAD to walk, and nothing at risk.
+	if exec.Command("git", "-C", repoPath, "rev-parse", "--verify", "--quiet", "HEAD").Run() != nil {
+		return 0, nil
+	}
+
+	args := []string{"-C", repoPath, "rev-list", "--count", "HEAD", "--not", "--remotes"}
+	// Everything after --not is excluded, so these are plain refs, never ^refs.
+	_, current := HeadInfo(repoPath)
+	for _, ref := range localBranchRefs(repoPath) {
+		if current == "" || ref != "refs/heads/"+current {
+			args = append(args, ref)
+		}
+	}
+
+	out, err := exec.Command("git", args...).Output()
+	if err != nil {
+		return 0, gitError("git rev-list --count HEAD --not --remotes", err)
+	}
+	var n int
+	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &n); err != nil {
+		return 0, fmt.Errorf("cannot parse unpushed commit count: %w", err)
+	}
+	return n, nil
 }

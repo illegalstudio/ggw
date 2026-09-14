@@ -1,9 +1,12 @@
-package worktree
+package workspace
 
 import (
 	"fmt"
 	"math/rand/v2"
 	"os"
+
+	"github.com/illegalstudio/ggw/internal/layout"
+	"github.com/illegalstudio/ggw/internal/worktree"
 )
 
 // randIntN is the RNG hook used by RandomName; tests may override it.
@@ -75,26 +78,26 @@ func RandomName() string {
 }
 
 // UniqueRandomName returns a RandomName that is free as a local branch,
-// origin tracking branch, and worktree destination path for (org, repo).
+// origin tracking branch, and workspace destination path for (org, repo).
 // It retries a bounded number of times to avoid rare collisions.
 func UniqueRandomName(repoPath, org, repo string) (string, error) {
 	const maxAttempts = 64
 	for range maxAttempts {
 		name := RandomName()
-		if branchExistsLocal(repoPath, name) {
+		if worktree.BranchExistsLocal(repoPath, name) {
 			continue
 		}
-		if remoteBranchRef(repoPath, name) != "" {
+		if worktree.RemoteBranchRef(repoPath, name) != "" {
 			continue
 		}
-		dest, err := WorktreePath(org, repo, SlugifyBranch(name))
+		dest, err := layout.WorkspacePath(org, repo, layout.SlugifyBranch(name))
 		if err != nil {
 			return "", err
 		}
 		if _, err := os.Stat(dest); err == nil {
 			continue
 		} else if !os.IsNotExist(err) {
-			return "", fmt.Errorf("check worktree path %s: %w", dest, err)
+			return "", fmt.Errorf("check workspace path %s: %w", dest, err)
 		}
 		return name, nil
 	}

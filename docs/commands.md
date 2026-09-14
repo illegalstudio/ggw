@@ -6,16 +6,32 @@
 |------|-------------|
 | `--json` | Emit machine-readable JSON for supported commands. Interactive prompts are refused or auto-confirmed where needed. |
 
+## Workspace Kinds
+
+`create` and `pr` make one of two kinds of workspace, both stored at
+`<base>/<org>/<repo>/<slug>` and treated alike by every other command:
+
+| Flag | Kind | What it is |
+|------|------|-----------|
+| `--wt` | `worktree` | a git worktree |
+| `--cow` | `cow` | a copy-on-write snapshot of the repository, untracked files included |
+
+The two flags are mutually exclusive. Without either, the kind comes from
+`GGW_MODE`, then `mode` in the config file, then `worktree`. See
+[Configuration](configuration.md#copy-on-write-workspaces) for requirements and
+trade-offs.
+
 JSON output follows these conventions:
 
-- `list` emits `{ "worktrees": [...] }`.
+- `list` emits `{ "worktrees": [...] }`, each entry carrying a `kind` of `"worktree"` or `"cow"`, and `main: true` on the repository's main worktree.
 - `create`, `pr`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
 - `exec` does not support `--json` because it streams another process through stdin, stdout, and stderr.
 - `skills install` emits `{ "name": ..., "installations": [...] }`, never prompts, and reports per-destination failures in each item's `error` field without changing the exit code.
 
 ## `ggw list`
 
-List worktrees registered for the current repository.
+List every workspace of the current repository: its git worktrees and its
+copy-on-write snapshots.
 
 ```bash
 ggw list
@@ -27,66 +43,81 @@ ggw --json list
 |------|-------------|
 | `--full-path` | Show the full tildified path instead of the compact `[...]` form. |
 
-The human output includes the branch name, worktree path, dirty marker, and upstream ahead/behind counters when an upstream is configured.
+The human output includes the branch name, workspace path, dirty marker, and upstream ahead/behind counters when an upstream is configured. Copy-on-write workspaces are tagged `[cow]`.
 
 ## `ggw create`
 
-Create a worktree for a branch.
+Create a workspace for a branch.
 
 ```bash
 ggw create feature/login
 ggw create                            # random name, e.g. intelligent-elephant
 ggw create fix/api --from main
-ggw create feature/login --bare   # skip provisioning for this run
+ggw create feature/login --cow        # copy-on-write snapshot
+ggw create feature/login --as review  # choose the directory name
+ggw create feature/login --bare       # skip provisioning for this run
 ```
 
 | Flag | Description |
 |------|-------------|
 | `--from` | Base ref used when creating a new local branch. Defaults to `HEAD`. |
+| `--as` | Directory name for the workspace. Defaults to the slugified branch. |
+| `--cow` | Make a copy-on-write snapshot instead of a worktree. |
+| `--wt` | Make a git worktree. |
 | `--bare` | Skip `.ggw.yaml` provisioning for this run. |
 
 Behavior:
 
-- If no branch argument is given, `ggw` generates a random Docker-style name (`adjective-noun`, e.g. `intelligent-elephant`), skipping names that already exist as a local branch, an `origin/*` tracking branch, or a worktree path.
-- If the branch exists locally, `ggw` checks it out into a new worktree.
+- If no branch argument is given, `ggw` generates a random Docker-style name (`adjective-noun`, e.g. `intelligent-elephant`), skipping names that already exist as a local branch, an `origin/*` tracking branch, or a workspace path.
+- If the branch exists locally, `ggw` checks it out into a new workspace.
 - If `origin/<branch>` exists locally, `ggw` creates a tracking branch.
 - Otherwise, `ggw` creates a new branch from `--from` or `HEAD`.
 
 The branch name is passed to git unchanged. Only the directory name is slugified, so `feature/login` is stored as `feature-login`.
 
-Tab completion suggests existing local and `origin/*` branches that do **not** already have a worktree, so you can quickly spin up a worktree on an existing branch without creating a new one. Branches already checked out in a worktree are omitted.
+`--as` decouples the directory from the branch. It is what allows two
+copy-on-write workspaces on the same branch — git refuses to check out one
+branch in two worktrees, but two independent repositories have no such rule.
+When a branch names more than one workspace, `cd`, `exec` and `delete` stop
+resolving it and use the directory names instead.
 
-If a `.ggw.yaml` exists at the repository root, `ggw create` provisions the new worktree automatically (copy → symlink → post_create). If provisioning fails, the worktree is removed but the branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
+Tab completion suggests existing local and `origin/*` branches that do **not** already have a workspace, so you can quickly spin up one on an existing branch without creating a new one. Branches already checked out are omitted.
+
+If a `.ggw.yaml` exists at the repository root, `ggw create` provisions the new workspace automatically (copy → symlink → post_create). For a `cow` workspace the copy and symlink steps are skipped — the snapshot already contains them — and only `post_create` runs. If provisioning fails, the workspace is removed but any pre-existing branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
 
 ## `ggw pr`
 
-Create a worktree for a GitHub pull request.
+Create a workspace for a GitHub pull request.
 
 ```bash
 ggw pr 123
 ggw --json pr 123
+ggw pr 123 --cow    # copy-on-write snapshot
 ggw pr 123 --bare   # skip provisioning for this run
 ```
 
 | Flag | Description |
 |------|-------------|
+| `--as` | Directory name for the workspace. Defaults to `pr-<id>`. |
+| `--cow` | Make a copy-on-write snapshot instead of a worktree. |
+| `--wt` | Make a git worktree. |
 | `--bare` | Skip `.ggw.yaml` provisioning for this run. |
 
 `ggw pr` requires [GitHub CLI](https://cli.github.com/) to be installed and authenticated. If `gh` is not available, the command exits with installation guidance.
 
 Behavior:
 
-- Creates a detached worktree at `.../<org>/<repo>/pr-<id>/`.
-- Runs `gh pr checkout <id>` inside that worktree.
+- Creates a workspace at `.../<org>/<repo>/pr-<id>/` with no branch of its own: a detached worktree, or a snapshot left where the repository's HEAD was.
+- Runs `gh pr checkout <id>` inside it.
 - Leaves the checkout on the branch selected by `gh`, preserving tracking metadata so `git push` works when GitHub permits pushing to the PR branch.
 
 For PRs from external forks, pushing still depends on GitHub permissions such as maintainer edit access.
 
-If a `.ggw.yaml` exists at the repository root, `ggw pr` provisions the new worktree automatically (copy → symlink → post_create). If provisioning fails, the worktree is removed but the branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
+If a `.ggw.yaml` exists at the repository root, `ggw pr` provisions the new workspace automatically (copy → symlink → post_create). If provisioning fails, the workspace is removed but the branch is kept. See [`ggw project-init`](#ggw-project-init) and [Project Provisioning](configuration.md#project-provisioning-ggwyaml).
 
 ## `ggw cd`
 
-Print the absolute path of a matching worktree.
+Print the absolute path of a matching workspace.
 
 ```bash
 ggw cd feature/login
@@ -96,17 +127,21 @@ ggw --json cd feature/login
 
 Matching order:
 
-1. Exact branch name or exact path.
-2. Exact worktree directory basename.
-3. Case-insensitive substring match against branch or path.
+1. Exact path.
+2. Exact branch name.
+3. Handle — the branch name, or trailing path segments for a workspace a branch cannot name on its own.
+4. Exact workspace directory basename.
+5. Case-insensitive substring match against branch or path.
 
-If no argument is provided, or if multiple substring matches are found, `ggw` opens an interactive selector. In `--json` mode, interactive disambiguation is refused.
+If no argument is provided, or if a step matches more than one workspace, `ggw` opens an interactive selector. In `--json` mode, interactive disambiguation is refused.
+
+A branch shared by two workspaces names neither, so it goes to the selector rather than silently picking one. Directory basenames are the exception: they resolve to the first match, which is the main worktree when it shares a basename with a detached workspace.
 
 Use shell integration if you want `ggw cd` to change the current shell directory. See [Shell Integration](shell-integration.md).
 
 ## `ggw exec`
 
-Run a command inside a worktree.
+Run a command inside a workspace.
 
 ```bash
 ggw exec feature/login -- npm install
@@ -120,7 +155,7 @@ Everything after `--` is passed to the child command unchanged. The child proces
 
 ## `ggw delete`
 
-Delete a worktree.
+Delete a workspace.
 
 ```bash
 ggw delete feature/login
@@ -131,10 +166,17 @@ ggw --json delete feature/login --force
 
 | Flag | Description |
 |------|-------------|
-| `--force` | Remove dirty worktrees too and skip confirmation. |
-| `--without-branch` | Keep the local branch after removing the worktree. |
+| `--force` | Remove a workspace holding unsaved work, and skip confirmation. |
+| `--without-branch` | Keep the local branch after removing a worktree. Has no meaning for a `cow` workspace. |
 
-By default, `ggw delete` removes both the selected worktree and its local branch. The current worktree and the main worktree are protected from deletion.
+By default, `ggw delete` removes both the selected worktree and its local branch. The current workspace and the main worktree are protected from deletion.
+
+Deleting a **copy-on-write workspace** removes its branch with it, because the
+branch exists nowhere else. `ggw delete` therefore refuses outright — no
+confirmation prompt — when such a workspace holds uncommitted changes or commits
+reachable from no remote and no other local branch, and prints the `git fetch`
+that saves the branch into the source repository first. History the workspace
+merely inherited is never counted: it is still in the original.
 
 ## `ggw shell-init`
 
@@ -146,12 +188,12 @@ eval "$(ggw shell-init zsh)"
 ggw shell-init fish | source
 ```
 
-The generated script makes `ggw cd` perform a real shell `cd` and installs Cobra-powered tab completion for commands and worktree names.
+The generated script makes `ggw cd` perform a real shell `cd` and installs Cobra-powered tab completion for commands and workspace names.
 
 ## `ggw init`
 
 Create the global config file (`~/.config/ggw/config.yaml`), seeded with this
-system's current default worktrees directory.
+system's current default base directory and `mode: worktree`.
 
 ```bash
 ggw init
@@ -179,7 +221,7 @@ ggw project-init --force   # overwrite an existing file
 |------|-------------|
 | `--force` | Overwrite an existing `.ggw.yaml`. |
 
-`.ggw.yaml` declares how each new worktree is set up after `ggw create` or `ggw pr`:
+`.ggw.yaml` declares how each new workspace is set up after `ggw create` or `ggw pr`:
 
 ```yaml
 copy:            # files/dirs copied from the main worktree
@@ -191,7 +233,7 @@ post_create:     # shell commands run in the new worktree, in order
   - composer install
 ```
 
-Provisioning runs in the fixed order copy → symlink → post_create. If any step fails, the new worktree is removed (the branch is kept) so you can fix the issue and re-run. Pass `--bare` to `create` or `pr` to skip provisioning for a single run.
+Provisioning runs in the fixed order copy → symlink → post_create. In `cow` mode copy and symlink are skipped, since the snapshot already contains them. If any step fails, the new workspace is removed (a pre-existing branch is kept) so you can fix the issue and re-run. Pass `--bare` to `create` or `pr` to skip provisioning for a single run.
 
 See [Project Provisioning](configuration.md#project-provisioning-ggwyaml) for the full schema reference.
 

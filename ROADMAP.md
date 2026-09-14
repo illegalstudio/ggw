@@ -31,4 +31,7 @@
 - [x] Tab completion zsh/bash/fish
 - [x] Goreleaser
 - [x] Homebrew tap
+- [x] Copy-on-write workspaces (`--cow` / `--wt`, `mode:` config, `--as`)
 - [ ] Configurable fallback when `origin` remote is missing (today: explicit error)
+- [ ] Native reflink backend (`clonefile(2)` / `FICLONE`) replacing the `cp` shell-out
+- [ ] Further copy-on-write backends: btrfs subvolume snapshots, zfs clones

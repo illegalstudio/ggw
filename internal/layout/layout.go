@@ -1,4 +1,6 @@
-package worktree
+// Package layout resolves where ggw stores workspaces on disk and how a
+// repository maps onto that layout.
+package layout
 
 import (
 	"fmt"
@@ -97,10 +99,10 @@ func SlugifyBranch(branch string) string {
 	return strings.TrimRight(b.String(), "-")
 }
 
-// WorktreesBase returns the directory under which all ggw-managed worktrees
-// live. A base_dir set in ~/.config/ggw/config.yaml wins; otherwise
+// Base returns the directory under which all ggw-managed workspaces live. A
+// base_dir set in ~/.config/ggw/config.yaml wins; otherwise
 // $XDG_DATA_HOME/worktrees, or ~/.local/share/worktrees as a fallback.
-func WorktreesBase() (string, error) {
+func Base() (string, error) {
 	if dir, ok, err := config.BaseDir(); err != nil {
 		return "", err
 	} else if ok {
@@ -120,17 +122,44 @@ func WorktreesBase() (string, error) {
 	return filepath.Join(base, "worktrees"), nil
 }
 
-// WorktreePath returns the absolute path where a worktree for (org, repo, slug)
-// should live, honoring XDG_DATA_HOME when set.
-func WorktreePath(org, repo, slug string) (string, error) {
-	base, err := WorktreesBase()
+// RepoDir returns the directory holding every workspace of (org, repo):
+// <base>/<org>/<repo>. It is the directory ggw scans to discover copy-on-write
+// workspaces, which git itself knows nothing about.
+func RepoDir(org, repo string) (string, error) {
+	base, err := Base()
 	if err != nil {
 		return "", err
 	}
-	if org == "" || repo == "" || slug == "" {
-		return "", fmt.Errorf("worktree path components must be non-empty (org=%q repo=%q slug=%q)", org, repo, slug)
+	if org == "" || repo == "" {
+		return "", fmt.Errorf("repo dir components must be non-empty (org=%q repo=%q)", org, repo)
 	}
-	return filepath.Join(base, org, repo, slug), nil
+	return filepath.Join(base, org, repo), nil
+}
+
+// WorkspacePath returns the absolute path where a workspace for
+// (org, repo, slug) should live. Both worktrees and copy-on-write workspaces
+// share this namespace, so a slug is taken by whichever kind claimed it first.
+func WorkspacePath(org, repo, slug string) (string, error) {
+	dir, err := RepoDir(org, repo)
+	if err != nil {
+		return "", err
+	}
+	if slug == "" {
+		return "", fmt.Errorf("workspace path components must be non-empty (org=%q repo=%q slug=%q)", org, repo, slug)
+	}
+	return filepath.Join(dir, slug), nil
+}
+
+// EnsureFreeDestination fails if destPath already exists and otherwise creates
+// its parent directory, so a caller can write the workspace into it.
+func EnsureFreeDestination(destPath string) error {
+	if _, err := os.Stat(destPath); err == nil {
+		return fmt.Errorf("path already exists: %s", destPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
+		return fmt.Errorf("cannot create parent directory: %w", err)
+	}
+	return nil
 }
 
 // RepoRoot returns the absolute path of the git repo containing cwd.

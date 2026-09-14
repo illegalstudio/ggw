@@ -66,7 +66,7 @@ var shellInitCmd = &cobra.Command{
 	Short:   "Print shell integration script (eval to enable `ggw cd` and completions)",
 	GroupID: GroupShell,
 	Long: `Print a shell function that makes "ggw cd" actually change directory,
-plus tab-completion for ggw commands and worktree names.
+plus tab-completion for ggw commands and workspace names.
 
 Add to your shell config:
   bash:  eval "$(ggw shell-init bash)"   (in ~/.bashrc)
@@ -74,9 +74,9 @@ Add to your shell config:
   fish:  ggw shell-init fish | source    (in ~/.config/fish/config.fish)
 
 Then:
-  ggw cd <name>      # cd into a worktree (interactive selector if name omitted)
+  ggw cd <name>      # cd into a workspace (interactive selector if name omitted)
   ggw de<TAB>        # complete commands
-  ggw cd fea<TAB>    # complete worktree names`,
+  ggw cd fea<TAB>    # complete workspace names`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		shell := "zsh"

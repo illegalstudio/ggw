@@ -1,28 +1,36 @@
-package worktree
+package workspace
 
 import (
 	"path/filepath"
 	"strings"
 )
 
-// Handles returns a stable, typeable handle for each worktree in list,
+// Handles returns a stable, typeable handle for each workspace in list,
 // aligned by index.
 //
-// A worktree with a branch uses the branch name. A branchless worktree
-// (detached / bare) uses the minimal number of trailing path segments that is
-// unique among all worktrees and distinct from every branch name — e.g. a
-// detached "~/.codex/worktrees/0e21/elephc" whose basename "elephc" collides
-// with the main worktree becomes "0e21/elephc".
-func Handles(list []Worktree) []string {
+// A workspace whose branch identifies it uniquely uses the branch name.
+// Anything else — a detached or bare worktree, or one of several workspaces
+// sharing a branch — uses the minimal number of trailing path segments that is
+// unique among all workspaces and distinct from every branch name. A detached
+// "~/.codex/worktrees/0e21/elephc" whose basename "elephc" collides with the
+// main worktree becomes "0e21/elephc".
+func Handles(list []Workspace) []string {
 	handles := make([]string, len(list))
+
+	// A branch is only a usable handle while it names one workspace. git
+	// enforces that for worktrees, but copy-on-write snapshots created with
+	// --as deliberately share a branch, and then the name picks out nothing.
+	count := make(map[string]int)
 	reserved := make(map[string]bool)
 	for _, w := range list {
 		if w.Branch != "" {
+			count[w.Branch]++
 			reserved[w.Branch] = true
 		}
 	}
+
 	for i, w := range list {
-		if w.Branch != "" {
+		if w.Branch != "" && count[w.Branch] == 1 {
 			handles[i] = w.Branch
 			continue
 		}
@@ -32,9 +40,9 @@ func Handles(list []Worktree) []string {
 }
 
 // uniquePathSuffix grows the trailing path segments of list[i] until the
-// resulting "/"-joined string is unique among every other worktree's path
+// resulting "/"-joined string is unique among every other workspace's path
 // (compared at the same depth) and is not a reserved branch name.
-func uniquePathSuffix(list []Worktree, i int, reserved map[string]bool) string {
+func uniquePathSuffix(list []Workspace, i int, reserved map[string]bool) string {
 	segs := pathSegments(list[i].Path)
 	if len(segs) == 0 {
 		return "(unknown)"

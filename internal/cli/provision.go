@@ -1,35 +1,25 @@
 package cli
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/illegalstudio/ggw/internal/project"
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/workspace"
 )
 
-// mainWorktreePath returns the path of the repository's main worktree, which
-// git always lists first. .ggw.yaml lives there and is the source for
-// copy/symlink provisioning.
-func mainWorktreePath(root string) (string, error) {
-	list, err := worktree.List(root)
-	if err != nil {
-		return "", err
-	}
-	if len(list) == 0 {
-		return "", fmt.Errorf("no worktrees found for %s", root)
-	}
-	return list[0].Path, nil
-}
-
-// provisionWorktree applies the repo's .ggw.yaml to a freshly created worktree
-// at dest. It is a no-op when bare is true or no .ggw.yaml exists. On error the
-// caller is responsible for rolling back the worktree.
-func provisionWorktree(root, dest string, bare bool, out io.Writer) error {
+// provisionWorkspace applies the repo's .ggw.yaml to a freshly created
+// workspace at dest. It is a no-op when bare is true or no .ggw.yaml exists.
+// On error the caller is responsible for rolling the workspace back.
+//
+// A copy-on-write workspace is a snapshot of the main worktree, so it already
+// contains everything `copy` and `symlink` exist to reproduce — running them
+// would only fail on destinations that are already there. Those steps are
+// skipped for that kind, and only post_create runs.
+func provisionWorkspace(ctx *workspace.Context, dest string, kind workspace.Kind, bare bool, out io.Writer) error {
 	if bare {
 		return nil
 	}
-	mainPath, err := mainWorktreePath(root)
+	mainPath, err := ctx.SourceRepo()
 	if err != nil {
 		return err
 	}
@@ -39,6 +29,9 @@ func provisionWorktree(root, dest string, bare bool, out io.Writer) error {
 	}
 	if !exists {
 		return nil
+	}
+	if kind == workspace.KindCoW {
+		cfg = &project.Config{PostCreate: cfg.PostCreate}
 	}
 	return project.Provision(project.ProvisionOptions{
 		MainPath: mainPath,

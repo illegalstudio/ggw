@@ -7,7 +7,7 @@ import (
 
 	"github.com/illegalstudio/ggw/internal/project"
 	"github.com/illegalstudio/ggw/internal/ui"
-	"github.com/illegalstudio/ggw/internal/worktree"
+	"github.com/illegalstudio/ggw/internal/workspace"
 
 	"github.com/spf13/cobra"
 )
@@ -24,11 +24,11 @@ var projectInitCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		root, err := worktree.RepoRoot(cwd)
+		ctx, err := workspace.Resolve(cwd)
 		if err != nil {
 			return err
 		}
-		mainPath, err := mainWorktreePath(root)
+		mainPath, err := ctx.SourceRepo()
 		if err != nil {
 			return err
 		}

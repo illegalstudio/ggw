@@ -1,4 +1,4 @@
-package worktree
+package layout
 
 import (
 	"os"
@@ -69,10 +69,10 @@ func TestSlugifyBranch(t *testing.T) {
 	}
 }
 
-func TestWorktreePathHonorsXDG(t *testing.T) {
+func TestWorkspacePathHonorsXDG(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
-	got, err := WorktreePath("acme", "api", "feature-login")
+	got, err := WorkspacePath("acme", "api", "feature-login")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -82,10 +82,10 @@ func TestWorktreePathHonorsXDG(t *testing.T) {
 	}
 }
 
-func TestWorktreePathFallsBackToHome(t *testing.T) {
+func TestWorkspacePathFallsBackToHome(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "")
 	t.Setenv("HOME", "/tmp/fakehome")
-	got, err := WorktreePath("acme", "api", "x")
+	got, err := WorkspacePath("acme", "api", "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -95,20 +95,20 @@ func TestWorktreePathFallsBackToHome(t *testing.T) {
 	}
 }
 
-func TestWorktreePathRejectsEmptyComponents(t *testing.T) {
+func TestWorkspacePathRejectsEmptyComponents(t *testing.T) {
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
-	if _, err := WorktreePath("", "api", "x"); err == nil {
+	if _, err := WorkspacePath("", "api", "x"); err == nil {
 		t.Fatal("expected error for empty org")
 	}
-	if _, err := WorktreePath("acme", "", "x"); err == nil {
+	if _, err := WorkspacePath("acme", "", "x"); err == nil {
 		t.Fatal("expected error for empty repo")
 	}
-	if _, err := WorktreePath("acme", "api", ""); err == nil {
+	if _, err := WorkspacePath("acme", "api", ""); err == nil {
 		t.Fatal("expected error for empty slug")
 	}
 }
 
-func TestWorktreePathConfigBaseDirWinsOverXDG(t *testing.T) {
+func TestWorkspacePathConfigBaseDirWinsOverXDG(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
@@ -123,7 +123,7 @@ func TestWorktreePathConfigBaseDirWinsOverXDG(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := WorktreePath("acme", "api", "feature-login")
+	got, err := WorkspacePath("acme", "api", "feature-login")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,12 +133,12 @@ func TestWorktreePathConfigBaseDirWinsOverXDG(t *testing.T) {
 	}
 }
 
-func TestWorktreePathNoConfigFallsBackToXDG(t *testing.T) {
+func TestWorkspacePathNoConfigFallsBackToXDG(t *testing.T) {
 	home := t.TempDir() // clean home: no config file
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_DATA_HOME", "/tmp/xdg")
 
-	got, err := WorktreePath("acme", "api", "x")
+	got, err := WorkspacePath("acme", "api", "x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
