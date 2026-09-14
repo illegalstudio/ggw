@@ -149,7 +149,7 @@ func TestCLIDeleteCoWRefusesToDestroyUnsavedWork(t *testing.T) {
 	if err == nil {
 		t.Fatalf("expected delete to refuse a snapshot with unpushed commits:\n%s", out)
 	}
-	if !strings.Contains(out, "1 unpushed commit") {
+	if !strings.Contains(out, "1 commit that exists nowhere else") {
 		t.Fatalf("refusal does not name what is at stake:\n%s", out)
 	}
 	if !strings.Contains(out, "git -C") || !strings.Contains(out, "fetch") {
@@ -167,7 +167,8 @@ func TestCLIDeleteCoWRefusesToDestroyUnsavedWork(t *testing.T) {
 	}
 }
 
-func TestCLIDeleteCoWRefusesToDestroyUncommittedChanges(t *testing.T) {
+// Uncommitted changes cannot be confirmed away when there is nobody to ask.
+func TestCLIDeleteCoWRefusesDirtyWorkspaceUnderJSON(t *testing.T) {
 	home, repo := setupCoWRepo(t)
 
 	if out, err := runGGW(t, home, repo, "create", "--cow", "feature/some"); err != nil {
@@ -176,12 +177,90 @@ func TestCLIDeleteCoWRefusesToDestroyUncommittedChanges(t *testing.T) {
 	ws := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-some")
 	writeFile(t, filepath.Join(ws, "README.md"), "# edited\n")
 
-	out, err := runGGW(t, home, repo, "delete", "feature/some")
+	out, err := runGGW(t, home, repo, "--json", "delete", "feature/some")
 	if err == nil {
-		t.Fatalf("expected delete to refuse a dirty snapshot:\n%s", out)
+		t.Fatalf("expected --json delete to refuse a dirty snapshot:\n%s", out)
 	}
 	if !strings.Contains(out, "uncommitted changes") {
 		t.Fatalf("refusal does not name what is at stake:\n%s", out)
+	}
+	if _, statErr := os.Stat(ws); statErr != nil {
+		t.Fatalf("workspace was removed despite the refusal: %v", statErr)
+	}
+}
+
+// A snapshot inherits whatever the source had in progress, so it can be dirty
+// from birth with nothing of its own at stake. A guard that fired on that would
+// fire on almost every workspace and teach people to reach for --force.
+func TestCLIDeleteCoWAcceptsInheritedDirtiness(t *testing.T) {
+	home, repo := setupCoWRepo(t)
+	writeFile(t, filepath.Join(repo, "scratch.txt"), "work in progress\n")
+	writeFile(t, filepath.Join(repo, "README.md"), "# edited in the source\n")
+
+	if out, err := runGGW(t, home, repo, "create", "--cow", "feature/some"); err != nil {
+		t.Fatalf("ggw create --cow failed: %v\n%s", err, out)
+	}
+
+	out, err := runGGW(t, home, repo, "--json", "delete", "feature/some", "--force")
+	if err != nil {
+		t.Fatalf("deleting a snapshot of a dirty source failed: %v\n%s", err, out)
+	}
+	if _, statErr := os.Stat(filepath.Join(repo, "scratch.txt")); statErr != nil {
+		t.Fatalf("the source's own work in progress was disturbed: %v", statErr)
+	}
+}
+
+// Commits at risk are counted against the repository the snapshot came from,
+// not against the snapshot's own refs — a second local branch is not a safe
+// harbour, it lives in the very directory about to be removed.
+func TestCLIDeleteCoWCountsRiskAgainstTheSourceRepository(t *testing.T) {
+	home, repo := setupCoWRepo(t)
+
+	if out, err := runGGW(t, home, repo, "create", "--cow", "feature/some"); err != nil {
+		t.Fatalf("ggw create --cow failed: %v\n%s", err, out)
+	}
+	ws := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-some")
+	runGit(t, home, ws, "commit", "--allow-empty", "-m", "work that exists nowhere else")
+
+	// A second ref onto the same commit keeps it just as unreachable from
+	// anywhere outside this directory.
+	runGit(t, home, ws, "branch", "backup")
+
+	out, err := runGGW(t, home, repo, "delete", "feature/some")
+	if err == nil {
+		t.Fatalf("a second local branch defeated the guard:\n%s", out)
+	}
+	if !strings.Contains(out, "1 commit that exists nowhere else") {
+		t.Fatalf("refusal does not name what is at stake:\n%s", out)
+	}
+
+	// Once the branch is in the source repository, it is genuinely safe.
+	runGit(t, home, repo, "fetch", ws, "feature/some:feature/some")
+	if out, err := runGGW(t, home, repo, "--json", "delete", "feature/some", "--without-branch"); err != nil {
+		t.Fatalf("deleting a rescued snapshot failed: %v\n%s", err, out)
+	}
+}
+
+// A snapshot that never had a remote must not report its whole inherited
+// history as work at risk.
+func TestCLIDeleteCoWWithoutRemotesCountsOnlyItsOwnWork(t *testing.T) {
+	home, repo := setupCoWRepo(t)
+	runGit(t, home, repo, "commit", "--allow-empty", "-m", "second")
+	runGit(t, home, repo, "commit", "--allow-empty", "-m", "third")
+
+	if out, err := runGGW(t, home, repo, "create", "--cow", "feature/some"); err != nil {
+		t.Fatalf("ggw create --cow failed: %v\n%s", err, out)
+	}
+	ws := filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-some")
+	runGit(t, home, ws, "remote", "remove", "origin")
+	runGit(t, home, ws, "commit", "--allow-empty", "-m", "one commit of its own")
+
+	out, err := runGGW(t, home, repo, "delete", "feature/some")
+	if err == nil {
+		t.Fatalf("expected delete to refuse:\n%s", out)
+	}
+	if !strings.Contains(out, "1 commit that exists nowhere else") {
+		t.Fatalf("inherited history was counted as at risk:\n%s", out)
 	}
 }
 
@@ -578,5 +657,63 @@ func TestCLIDeleteRefusesTheCurrentWorkspaceBehindASymlink(t *testing.T) {
 		if _, statErr := os.Stat(filepath.Join(real, "acme", "api", name)); statErr != nil {
 			t.Fatalf("current workspace %s was removed: %v", name, statErr)
 		}
+	}
+}
+
+// Moved out of the layout directory, a snapshot is discoverable from nowhere
+// but itself — and standing in a workspace ggw cannot name is worse than
+// showing it.
+func TestCLIListIncludesTheWorkspaceYouAreStandingIn(t *testing.T) {
+	home, repo := setupCoWRepo(t)
+
+	for _, branch := range []string{"feature/stays", "feature/moves"} {
+		if out, err := runGGW(t, home, repo, "create", "--cow", branch); err != nil {
+			t.Fatalf("ggw create --cow failed: %v\n%s", err, out)
+		}
+	}
+
+	moved := filepath.Join(filepath.Dir(repo), "moved-out")
+	if err := os.Rename(filepath.Join(home, ".local", "share", "worktrees", "acme", "api", "feature-moves"), moved); err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runGGW(t, home, moved, "--json", "list")
+	if err != nil {
+		t.Fatalf("ggw list from a moved snapshot failed: %v\n%s", err, out)
+	}
+	var payload struct {
+		Worktrees []struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+			Main bool   `json:"main"`
+		} `json:"worktrees"`
+	}
+	if err := json.Unmarshal([]byte(out), &payload); err != nil {
+		t.Fatalf("list JSON is invalid: %v\n%s", err, out)
+	}
+
+	var found bool
+	for _, e := range payload.Worktrees {
+		if e.Path != canonicalPath(t, moved) {
+			continue
+		}
+		found = true
+		if e.Kind != "cow" {
+			t.Fatalf("moved snapshot reported as kind %q, want cow", e.Kind)
+		}
+		if e.Main {
+			t.Fatal("moved snapshot reported as the main worktree")
+		}
+	}
+	if !found {
+		t.Fatalf("list does not include the workspace it was run from: %+v", payload.Worktrees)
+	}
+
+	// And it must still be deletable, which "cannot delete the main worktree"
+	// would have prevented.
+	if out, err := runGGW(t, home, repo, "--json", "list"); err != nil {
+		t.Fatalf("ggw list from the repo failed: %v\n%s", err, out)
+	} else if strings.Contains(out, canonicalPath(t, moved)) {
+		t.Fatalf("a workspace outside the layout must not show up from elsewhere:\n%s", out)
 	}
 }

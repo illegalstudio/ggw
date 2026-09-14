@@ -56,7 +56,10 @@ func Clone(src, dst string) error {
 		// A failed clone can leave a partial tree behind; the caller asked for
 		// a workspace, not for debris.
 		_ = os.RemoveAll(dst)
-		return explainCloneFailure(src, dstParent, stderr.String())
+		// The probe just shared blocks between these two filesystems, so this
+		// is something else entirely — permissions, disk space, a file that
+		// cannot be read. Say what happened instead of inventing a cause.
+		return fmt.Errorf("cannot snapshot %s into %s: %w%s", src, dst, err, detail(stderr.String()))
 	}
 	return nil
 }
@@ -75,7 +78,9 @@ func probeClone(src, dstParent string) error {
 
 	tmp, err := os.CreateTemp(dstParent, ".ggw-cow-probe-*")
 	if err != nil {
-		return nil
+		// Not being able to put a file in the destination is itself the answer,
+		// and a far better one than whatever the full copy would report.
+		return fmt.Errorf("cannot write into %s: %w", dstParent, err)
 	}
 	probe := tmp.Name()
 	_ = tmp.Close()
@@ -104,9 +109,12 @@ func cloneArgs(src, dst string) []string {
 	return []string{"-a", "--reflink=always", "--", src, dst}
 }
 
-// explainCloneFailure turns a terse `cp` error into the two answers a user
+// explainCloneFailure turns a failed *probe* into the two answers a user
 // actually needs: whether the two paths are on the same filesystem, and
 // whether that filesystem can share blocks at all.
+//
+// It is only ever reached from probeClone. Once the probe has succeeded,
+// reflinks demonstrably work here and no later failure may be blamed on them.
 func explainCloneFailure(src, dstParent, stderr string) error {
 	srcDev, srcOK := deviceID(src)
 	dstDev, dstOK := deviceID(dstParent)
@@ -126,14 +134,20 @@ func explainCloneFailure(src, dstParent, stderr string) error {
 	)
 }
 
-// detail appends the first line of a command's stderr. Only the first: `cp`
-// emits one line per file it could not clone, and they all say the same thing.
+// detail appends a command's stderr, capped: `cp` emits one line per file it
+// could not handle, and a repository can have a great many files.
 func detail(stderr string) string {
-	line, _, _ := strings.Cut(strings.TrimSpace(stderr), "\n")
-	if line == "" {
+	lines := strings.Split(strings.TrimSpace(stderr), "\n")
+	if len(lines) == 1 && lines[0] == "" {
 		return ""
 	}
-	return ": " + line
+
+	const max = 5
+	if len(lines) > max {
+		omitted := len(lines) - max
+		lines = append(lines[:max:max], fmt.Sprintf("(and %d more)", omitted))
+	}
+	return ": " + strings.Join(lines, "; ")
 }
 
 func filesystemLabel(path string) string {

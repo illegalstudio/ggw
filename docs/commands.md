@@ -172,11 +172,22 @@ ggw --json delete feature/login --force
 By default, `ggw delete` removes both the selected worktree and its local branch. The current workspace and the main worktree are protected from deletion.
 
 Deleting a **copy-on-write workspace** removes its branch with it, because the
-branch exists nowhere else. `ggw delete` therefore refuses outright — no
-confirmation prompt — when such a workspace holds uncommitted changes or commits
-reachable from no remote and no other local branch, and prints the `git fetch`
-that saves the branch into the source repository first. History the workspace
-merely inherited is never counted: it is still in the original.
+branch exists nowhere else.
+
+`ggw delete` therefore refuses outright — no confirmation prompt — when such a
+workspace holds **commits that exist nowhere else**, and prints the `git fetch`
+that saves the branch into the source repository first. A commit counts as safe
+when it is reachable from a remote-tracking ref, or from a branch of the
+repository the snapshot came from. History the snapshot merely inherited is
+never counted, and neither is a second local branch inside the snapshot — that
+ref is in the very directory about to be removed.
+
+**Uncommitted changes** are treated more lightly, because a snapshot inherits
+whatever the source had in progress and is therefore often dirty from birth with
+nothing of its own at stake. They are mentioned in the confirmation prompt rather
+than blocking the command. Under `--json` there is no prompt to answer, so a
+dirty workspace is refused and `--force` is required — the same protection git
+gives a dirty worktree.
 
 ## `ggw shell-init`
 

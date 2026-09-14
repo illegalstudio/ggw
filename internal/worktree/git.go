@@ -138,14 +138,42 @@ func RemoteBranches(repoPath string) ([]string, error) {
 	return branches, nil
 }
 
-// localBranchRefs returns the full refnames of every local branch. Full names
-// avoid the branch/tag ambiguity a short name can carry.
-func localBranchRefs(repoPath string) []string {
-	out, err := exec.Command("git", "-C", repoPath, "for-each-ref", "--format=%(refname)", "refs/heads").Output()
+// BranchTips returns the object id of every branch of repoPath, local and
+// remote-tracking. Only branches: those always point at commits, which the tags
+// a repository may also hold do not.
+func BranchTips(repoPath string) []string {
+	out, err := exec.Command("git", "-C", repoPath,
+		"for-each-ref", "--format=%(objectname)", "refs/heads", "refs/remotes").Output()
 	if err != nil {
 		return nil
 	}
 	return nonEmptyLines(string(out))
+}
+
+// KnownObjects filters ids down to the ones repoPath actually contains, so a
+// caller can hand another repository's tips to a command that would otherwise
+// fail on the ones this repository has never seen.
+func KnownObjects(repoPath string, ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	cmd := exec.Command("git", "-C", repoPath, "cat-file", "--batch-check")
+	cmd.Stdin = strings.NewReader(strings.Join(ids, "\n") + "\n")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var known []string
+	for _, line := range nonEmptyLines(string(out)) {
+		// "<oid> <type> <size>" when the object is here, "<oid> missing" when not.
+		id, rest, found := strings.Cut(line, " ")
+		if found && !strings.HasPrefix(rest, "missing") {
+			known = append(known, id)
+		}
+	}
+	return known
 }
 
 func nonEmptyLines(s string) []string {
@@ -373,28 +401,26 @@ func AddRemote(repoPath, name, url string) error {
 	return nil
 }
 
-// UnpushedCommits counts the commits on HEAD that exist nowhere but this
-// repository — the work that would be lost if it were deleted.
+// CommitsAtRisk counts the commits reachable from HEAD that exist nowhere but
+// this repository — the work that would be lost if it were deleted.
 //
-// Commits reachable from a remote-tracking ref are safe, and so are commits
-// reachable from another local branch: a copy-on-write workspace inherits every
-// branch of the repository it was snapshotted from, so the history it starts
-// out with still lives in the original. Only what was committed on top of that
-// is genuinely at risk.
-func UnpushedCommits(repoPath string) (int, error) {
+// Commits reachable from a remote-tracking ref are safe. So are the ones listed
+// in elsewhere, which the caller fills with the branch tips of the repository a
+// snapshot was taken from: a snapshot starts out holding all of its source's
+// history, and its copy of it is not what keeps that history alive.
+//
+// Deliberately *not* excluded are the snapshot's own local branches. A branch
+// created inside a snapshot lives nowhere else, so treating it as a safe harbour
+// would hide exactly the work this measurement exists to find.
+func CommitsAtRisk(repoPath string, elsewhere []string) (int, error) {
 	// A repository with no commits has no HEAD to walk, and nothing at risk.
 	if exec.Command("git", "-C", repoPath, "rev-parse", "--verify", "--quiet", "HEAD").Run() != nil {
 		return 0, nil
 	}
 
+	// Everything after --not is excluded, so these are plain revisions, never ^revs.
 	args := []string{"-C", repoPath, "rev-list", "--count", "HEAD", "--not", "--remotes"}
-	// Everything after --not is excluded, so these are plain refs, never ^refs.
-	_, current := HeadInfo(repoPath)
-	for _, ref := range localBranchRefs(repoPath) {
-		if current == "" || ref != "refs/heads/"+current {
-			args = append(args, ref)
-		}
-	}
+	args = append(args, elsewhere...)
 
 	out, err := exec.Command("git", args...).Output()
 	if err != nil {
@@ -402,7 +428,7 @@ func UnpushedCommits(repoPath string) (int, error) {
 	}
 	var n int
 	if _, err := fmt.Sscanf(strings.TrimSpace(string(out)), "%d", &n); err != nil {
-		return 0, fmt.Errorf("cannot parse unpushed commit count: %w", err)
+		return 0, fmt.Errorf("cannot parse the at-risk commit count: %w", err)
 	}
 	return n, nil
 }

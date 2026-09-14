@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/illegalstudio/ggw/internal/cow"
 	"github.com/illegalstudio/ggw/internal/layout"
@@ -99,23 +100,35 @@ func List(ctx *Context) ([]Workspace, error) {
 		out = append(out, snapshots...)
 	}
 
-	if len(out) == 0 {
-		// Neither source answered: the snapshot's origin repository is gone and
-		// the layout directory yielded nothing. Fall back to whatever git can
-		// say about where we actually are.
-		wts, err := worktree.List(ctx.RepoPath)
-		if err != nil {
-			return nil, err
-		}
-		for i, w := range wts {
-			out = append(out, Workspace{
-				Kind: KindWorktree, Path: w.Path, Head: w.Head, Branch: w.Branch,
-				Detached: w.Detached, Locked: w.Locked, Bare: w.Bare, Main: i == 0,
-			})
+	return ensureCurrent(ctx, out), nil
+}
+
+// ensureCurrent adds the workspace we are standing in when neither source found
+// it.
+//
+// Only a snapshot can go missing this way, by being moved out of the layout
+// directory or left behind by a change of base_dir: git enumerates every
+// worktree of a repository, but nothing enumerates a snapshot except the scan.
+// Leaving it out would make `ggw cd` and `ggw delete` unable to name the very
+// place the user is in.
+func ensureCurrent(ctx *Context, list []Workspace) []Workspace {
+	if !ctx.InCoW {
+		return list
+	}
+	for _, w := range list {
+		if w.Path == ctx.RepoPath {
+			return list
 		}
 	}
 
-	return out, nil
+	head, branch := worktree.HeadInfo(ctx.RepoPath)
+	return append(list, Workspace{
+		Kind:     KindCoW,
+		Path:     ctx.RepoPath,
+		Head:     head,
+		Branch:   branch,
+		Detached: branch == "",
+	})
 }
 
 // scanCoW finds the copy-on-write workspaces of (org, repo) by looking for
@@ -321,23 +334,26 @@ func Status(ws Workspace) (worktree.Status, error) {
 
 // UnsavedWork is what removing a workspace would destroy.
 type UnsavedWork struct {
-	// Dirty reports uncommitted changes in the work tree.
+	// Dirty reports uncommitted changes in the work tree. For a copy-on-write
+	// workspace this is a weak signal: a snapshot inherits whatever the source
+	// had in progress, so it can be dirty from birth with nothing of its own
+	// at stake.
 	Dirty bool
-	// Unpushed counts commits that exist in no remote. For a copy-on-write
-	// workspace these are irrecoverable once the directory is gone, because
-	// its branch lives nowhere else.
-	Unpushed int
+	// AtRisk counts commits that exist in no remote and in no other repository
+	// — for a copy-on-write workspace, the work that vanishes with the
+	// directory, silently and with no way back.
+	AtRisk int
 }
 
 // Any reports whether there is anything to lose.
-func (u UnsavedWork) Any() bool { return u.Dirty || u.Unpushed > 0 }
+func (u UnsavedWork) Any() bool { return u.Dirty || u.AtRisk > 0 }
 
 // Inspect reports the work that removing ws would destroy.
 //
 // A failure to measure is returned rather than swallowed. The caller is about
 // to delete something irreplaceable, and "git would not answer" is not the same
 // answer as "there is nothing to lose".
-func Inspect(ws Workspace) (UnsavedWork, error) {
+func Inspect(ctx *Context, ws Workspace) (UnsavedWork, error) {
 	var u UnsavedWork
 
 	st, err := worktree.GetStatus(ws.Path)
@@ -346,7 +362,15 @@ func Inspect(ws Workspace) (UnsavedWork, error) {
 	}
 	u.Dirty = st.Dirty
 
-	u.Unpushed, err = worktree.UnpushedCommits(ws.Path)
+	// History the snapshot merely inherited is still in the repository it came
+	// from. Only tips that repository still has are worth excluding — it may
+	// have moved on, and rev-list cannot be handed a commit this one never saw.
+	var elsewhere []string
+	if ctx.MainPath != "" {
+		elsewhere = worktree.KnownObjects(ws.Path, worktree.BranchTips(ctx.MainPath))
+	}
+
+	u.AtRisk, err = worktree.CommitsAtRisk(ws.Path, elsewhere)
 	if err != nil {
 		return u, err
 	}
@@ -356,9 +380,22 @@ func Inspect(ws Workspace) (UnsavedWork, error) {
 // RescueCommand returns the git invocation that saves a copy-on-write
 // workspace's branch into the repository it came from, so a refusal to delete
 // can tell the user exactly how to keep their work.
+//
+// Paths are quoted: this is a command meant to be pasted into a shell, and a
+// directory with a space in it would otherwise produce one that silently does
+// something else.
 func RescueCommand(ctx *Context, ws Workspace) string {
 	if ws.Branch == "" || ctx.MainPath == "" {
 		return ""
 	}
-	return fmt.Sprintf("git -C %s fetch %s %s:%s", ctx.MainPath, ws.Path, ws.Branch, ws.Branch)
+	return fmt.Sprintf("git -C %s fetch %s %s:%s",
+		shellQuote(ctx.MainPath), shellQuote(ws.Path), ws.Branch, ws.Branch)
+}
+
+// shellQuote renders s as a single POSIX shell word.
+func shellQuote(s string) string {
+	if s != "" && !strings.ContainsAny(s, " \t\n\"'\\$`&;|<>()*?[]#~!") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

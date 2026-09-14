@@ -91,11 +91,12 @@ copy-on-write snapshots, which are tagged [cow].`,
 			return nil
 		}
 
-		labels := make([]string, len(entries))
+		// The label is the handle, never the raw branch: a branch shared by two
+		// workspaces names neither, and printing it would offer a name that
+		// `ggw cd` and `ggw delete` then refuse to resolve.
 		maxLabel := 0
-		for i := range entries {
-			labels[i] = labelFor(entries[i], handles[i])
-			if l := len(labels[i]); l > maxLabel {
+		for _, h := range handles {
+			if l := len(h); l > maxLabel {
 				maxLabel = l
 			}
 		}
@@ -103,7 +104,7 @@ copy-on-write snapshots, which are tagged [cow].`,
 		fmt.Println(ui.Title.Render("Workspaces"))
 		fmt.Println()
 		for i, e := range entries {
-			pad := strings.Repeat(" ", maxLabel-len(labels[i]))
+			pad := strings.Repeat(" ", maxLabel-len(handles[i]))
 			suffix := statusSuffix(e)
 			tags := ""
 			if e.Branch == "" {
@@ -124,7 +125,7 @@ copy-on-write snapshots, which are tagged [cow].`,
 			}
 			fmt.Printf("  %s %s%s → %s%s%s\n",
 				ui.Success.Render("●"),
-				ui.Branch.Render(labels[i]),
+				ui.Branch.Render(handles[i]),
 				pad,
 				ui.Path.Render(renderPath(e.Path, fullPath)),
 				suffix,
@@ -146,13 +147,6 @@ func renderPath(p string, full bool) string {
 		return displayPath(p)
 	}
 	return compactPath(p)
-}
-
-func labelFor(e listEntry, handle string) string {
-	if e.Branch != "" {
-		return e.Branch
-	}
-	return handle
 }
 
 func statusSuffix(e listEntry) string {

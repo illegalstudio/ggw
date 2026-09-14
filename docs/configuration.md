@@ -65,8 +65,11 @@ A snapshot is an independent repository. That has consequences worth knowing:
   `feature/x` in the snapshot; the original repository never hears about it
   until you push, or fetch from the snapshot.
 - **Deleting it deletes the branch.** `ggw delete` therefore refuses to remove a
-  snapshot holding uncommitted changes or commits that exist nowhere else, and
-  prints the `git fetch` that rescues the branch first. `--force` overrides.
+  snapshot holding commits that exist in no remote and in no branch of the
+  source repository, and prints the `git fetch` that rescues the branch first.
+  Uncommitted changes only add a line to the confirmation prompt, since a
+  snapshot usually inherits some; under `--json`, where nothing can be
+  confirmed, they are refused too. `--force` overrides either.
 - **Two snapshots can share a branch.** git refuses to check out one branch in
   two worktrees; two independent repositories have no such rule. Use `--as` to
   give the second one its own directory.

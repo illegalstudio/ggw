@@ -34,7 +34,7 @@ These commands only read: `list`, `cd`, `shell-init`.
 
 Run `ggw list --json` before anything that writes, and use its output to state the exact worktree you resolved — path and branch — before acting on it. Never pass a user's fuzzy name straight to a destructive command.
 
-`ggw list --json` reports `kind`, `path`, `branch`, `dirty`, `ahead`, `behind`, `external`, and `main` per workspace. `kind` is `"worktree"` or `"cow"`; `"dirty": true` means uncommitted work; `"main": true` marks the repository's main worktree, which cannot be deleted.
+`ggw list --json` reports `kind`, `path`, `branch`, `dirty`, `ahead`, `behind`, `external`, and `main` per workspace. The human-readable `ggw list` prints, for each workspace, exactly the name `cd`, `exec` and `delete` accept. `kind` is `"worktree"` or `"cow"`; `"dirty": true` means uncommitted work; `"main": true` marks the repository's main worktree, which cannot be deleted.
 
 Do not assume a branch identifies one workspace. Two `cow` workspaces created with `--as` can share a branch, and then only their paths tell them apart.
 
@@ -46,7 +46,9 @@ Do not assume a branch identifies one workspace. Two `cow` workspaces created wi
 - `--force` removes a workspace holding unsaved work, discarding it, and skips the confirmation prompt. Never add it on your own initiative.
 - Under `--json` the confirmation prompt is auto-accepted. `ggw --json delete <name>` deletes immediately with no interaction. Treat `--json` here as "already confirmed", never as a way to avoid asking the user.
 
-Deleting a **cow** workspace is irreversible in a way deleting a worktree is not: its branch exists nowhere else, so the commits go with the directory. ggw refuses such a delete outright — not a prompt, an error — when the workspace holds uncommitted changes or commits reachable from no remote and no other local branch, and the error carries the `git fetch` that saves the branch into the source repository. Run that command, or relay it to the user. Reaching for `--force` instead destroys the work the refusal was protecting.
+Deleting a **cow** workspace is irreversible in a way deleting a worktree is not: its branch exists nowhere else, so the commits go with the directory. ggw refuses such a delete outright — not a prompt, an error — when the workspace holds commits reachable from no remote and from no branch of the source repository, and the error carries the `git fetch` that saves the branch into the source repository. Run that command, or relay it to the user. Reaching for `--force` instead destroys the work the refusal was protecting.
+
+Uncommitted changes are a separate, weaker signal: a snapshot inherits whatever the source had in progress, so it is often dirty with nothing of its own at stake. Interactively they only add a line to the confirmation. Under `--json` there is nothing to confirm, so ggw refuses and asks for `--force` — expect to hit this routinely, and check with the user rather than adding `--force` reflexively.
 
 ## `ggw exec` runs arbitrary commands
 
