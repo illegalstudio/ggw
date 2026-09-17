@@ -45,6 +45,40 @@ type skillsInstallResult struct {
 	Installations []skillInstallItem `json:"installations"`
 }
 
+type skillVerifyItem struct {
+	Target string                 `json:"target"`
+	Path   string                 `json:"path"`
+	Status ggwskills.VerifyStatus `json:"status,omitempty"`
+	Error  string                 `json:"error,omitempty"`
+}
+
+type skillsVerifyResult struct {
+	Name          string            `json:"name"`
+	Verifications []skillVerifyItem `json:"verifications"`
+}
+
+// anyStale reports whether any installed destination disagrees with the
+// bundled skill. Absent destinations and per-destination errors do not count.
+func (r skillsVerifyResult) anyStale() bool {
+	for _, item := range r.Verifications {
+		if item.Error == "" && item.Status.Stale() {
+			return true
+		}
+	}
+	return false
+}
+
+// errSkillsStale makes a stale verification fail the command (exit code 1)
+// after its report has been printed.
+var errSkillsStale = fmt.Errorf("one or more installed skills are not in sync with this ggw version (run `ggw skills install` to update)")
+
+// staleSkillsError carries the verify payload into JSON mode, where root's
+// error handler emits it instead of a bare {"error": ...} object.
+type staleSkillsError struct{ result skillsVerifyResult }
+
+func (e staleSkillsError) Error() string    { return errSkillsStale.Error() }
+func (e staleSkillsError) JSONPayload() any { return e.result }
+
 var skillsCmd = &cobra.Command{
 	Use:     "skills",
 	Short:   "Manage the bundled AI agent skill",
@@ -223,11 +257,102 @@ func printSkillsInstallResult(result skillsInstallResult) {
 	fmt.Println()
 }
 
+var skillsVerifyCmd = &cobra.Command{
+	Use:   "verify",
+	Short: "Check whether the installed GGW skills match this binary",
+	Long: `Compare each installed copy of the bundled AI agent skill with the skill
+this ggw binary carries, using the recorded SHA-256 digests.
+
+Without --target every known destination is checked; the command never
+prompts. Exit code is 1 when an installed skill is outdated or was modified
+locally, so the check can gate scripts and CI.`,
+	Args:         cobra.NoArgs,
+	SilenceUsage: true, // a stale skill fails the command but is not a usage error
+	RunE: func(cmd *cobra.Command, args []string) error {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("find user home directory: %w", err)
+		}
+
+		requested, _ := cmd.Flags().GetStringArray("target")
+		targets, err := selectVerifyTargets(skillTargets(home), requested)
+		if err != nil {
+			return err
+		}
+
+		result := verifySkillTargets(targets)
+
+		if jsonOutput {
+			if result.anyStale() {
+				return staleSkillsError{result: result}
+			}
+			return emitJSON(result)
+		}
+
+		printSkillsVerifyResult(result)
+		if result.anyStale() {
+			return errSkillsStale
+		}
+		return nil
+	},
+}
+
+// selectVerifyTargets resolves which destinations to check. Verification is
+// read-only, so without --target it simply checks every destination instead of
+// prompting.
+func selectVerifyTargets(all []skillTarget, requested []string) ([]skillTarget, error) {
+	if len(requested) > 0 {
+		return filterSkillTargets(all, requested)
+	}
+	return all, nil
+}
+
+// verifySkillTargets checks each destination independently: a failure is
+// recorded on its own item and never stops the remaining destinations.
+func verifySkillTargets(targets []skillTarget) skillsVerifyResult {
+	result := skillsVerifyResult{
+		Name:          ggwskills.Name,
+		Verifications: make([]skillVerifyItem, 0, len(targets)),
+	}
+
+	for _, target := range targets {
+		status, err := ggwskills.Verify(target.Path)
+		result.Verifications = append(result.Verifications, skillVerifyItem{
+			Target: target.Key,
+			Path:   target.Path,
+			Status: status,
+			Error:  errString(err),
+		})
+	}
+
+	return result
+}
+
+func printSkillsVerifyResult(result skillsVerifyResult) {
+	fmt.Println()
+	for _, item := range result.Verifications {
+		switch {
+		case item.Error != "":
+			fmt.Printf("  %s %s %s\n", ui.Error.Render("✗"), ui.Branch.Render(displayPath(item.Path)), ui.Error.Render(item.Error))
+		case item.Status == ggwskills.VerifyUpToDate:
+			fmt.Printf("  %s %s %s\n", ui.Success.Render("✓"), ui.Branch.Render(displayPath(item.Path)), ui.Muted.Render(string(item.Status)))
+		case item.Status == ggwskills.VerifyNotInstalled:
+			fmt.Printf("  %s %s %s\n", ui.Muted.Render("·"), ui.Branch.Render(displayPath(item.Path)), ui.Muted.Render(string(item.Status)))
+		default:
+			fmt.Printf("  %s %s %s\n", ui.Error.Render("✗"), ui.Branch.Render(displayPath(item.Path)), ui.Error.Render(string(item.Status)))
+		}
+	}
+	fmt.Println()
+}
+
 func init() {
 	skillsInstallCmd.Flags().Bool("force", false, "Replace an existing GGW skill that differs from the bundled version")
 	skillsInstallCmd.Flags().StringArray("target", nil, "Install only to this destination (agents, claude); repeatable, not comma-separated")
 	registerSkillTargetCompletion(skillsInstallCmd)
 
-	skillsCmd.AddCommand(skillsInstallCmd)
+	skillsVerifyCmd.Flags().StringArray("target", nil, "Verify only this destination (agents, claude); repeatable, not comma-separated")
+	registerSkillTargetCompletion(skillsVerifyCmd)
+
+	skillsCmd.AddCommand(skillsInstallCmd, skillsVerifyCmd)
 	rootCmd.AddCommand(skillsCmd)
 }

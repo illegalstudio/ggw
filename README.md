@@ -109,8 +109,10 @@ ggw skills install
 Both `~/.agents/skills/ggw` (Codex and compatible hosts) and
 `~/.claude/skills/ggw` (Claude Code) are preselected. Reinstalling is safe: an
 unmodified copy is updated in place, and local edits are protected until you pass
-`--force`. See [Commands](docs/commands.md#ggw-skills-install) for the full
-reference.
+`--force`. When an installed skill falls out of sync with the binary, ggw says
+so on stderr after interactive commands; `ggw skills verify` checks on demand,
+and `suppress_skills_notice: true` in the config silences the reminder. See
+[Commands](docs/commands.md#ggw-skills-install) for the full reference.
 
 ## Usage
 
