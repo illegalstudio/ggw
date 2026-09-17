@@ -3,6 +3,7 @@ package cli
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	ggwskills "github.com/illegalstudio/ggw/skills"
@@ -87,7 +88,13 @@ func TestSkillNoticeApplies(t *testing.T) {
 	exec := &cobra.Command{Use: "exec"}
 	shellInit := &cobra.Command{Use: "shell-init"}
 	help := &cobra.Command{Use: "help"}
-	root.AddCommand(skills, list, cd, exec, shellInit, completion, help)
+	complete := &cobra.Command{Use: "__complete", Hidden: true}
+	listHelp := &cobra.Command{Use: "list"}
+	listHelp.Flags().Bool("help", false, "")
+	if err := listHelp.Flags().Set("help", "true"); err != nil {
+		t.Fatal(err)
+	}
+	root.AddCommand(skills, list, cd, exec, shellInit, completion, help, complete)
 
 	cases := []struct {
 		name string
@@ -97,6 +104,8 @@ func TestSkillNoticeApplies(t *testing.T) {
 		{"nil command", nil, false},
 		{"root command", rootCmd, false},
 		{"list", list, true},
+		{"list --help", listHelp, false},
+		{"__complete", complete, false},
 		{"skills install", install, false},
 		{"skills", skills, false},
 		{"cd", cd, false},
@@ -110,5 +119,21 @@ func TestSkillNoticeApplies(t *testing.T) {
 		if got := skillNoticeApplies(tc.cmd); got != tc.want {
 			t.Fatalf("%s: skillNoticeApplies = %v, want %v", tc.name, got, tc.want)
 		}
+	}
+}
+
+func TestStaleSkillsErrorSuggestsForceOnlyForModified(t *testing.T) {
+	outdated := skillsVerifyResult{Verifications: []skillVerifyItem{
+		{Target: "agents", Status: ggwskills.VerifyOutdated},
+	}}
+	if msg := (staleSkillsError{result: outdated}).Error(); strings.Contains(msg, "--force") {
+		t.Fatalf("outdated-only message should not mention --force: %q", msg)
+	}
+
+	modified := skillsVerifyResult{Verifications: []skillVerifyItem{
+		{Target: "agents", Status: ggwskills.VerifyModified},
+	}}
+	if msg := (staleSkillsError{result: modified}).Error(); !strings.Contains(msg, "--force") {
+		t.Fatalf("modified message should mention --force: %q", msg)
 	}
 }

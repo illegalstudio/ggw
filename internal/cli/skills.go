@@ -68,15 +68,30 @@ func (r skillsVerifyResult) anyStale() bool {
 	return false
 }
 
-// errSkillsStale makes a stale verification fail the command (exit code 1)
-// after its report has been printed.
-var errSkillsStale = fmt.Errorf("one or more installed skills are not in sync with this ggw version (run `ggw skills install` to update)")
+// anyModified reports whether any destination was edited locally or not
+// written by ggw, which makes `ggw skills install` refuse without --force.
+func (r skillsVerifyResult) anyModified() bool {
+	for _, item := range r.Verifications {
+		if item.Error == "" && item.Status == ggwskills.VerifyModified {
+			return true
+		}
+	}
+	return false
+}
 
-// staleSkillsError carries the verify payload into JSON mode, where root's
-// error handler emits it instead of a bare {"error": ...} object.
+// staleSkillsError makes a stale verification fail the command (exit code 1)
+// after its report has been printed, and carries the verify payload into JSON
+// mode, where root's error handler emits it instead of a bare {"error": ...}.
 type staleSkillsError struct{ result skillsVerifyResult }
 
-func (e staleSkillsError) Error() string    { return errSkillsStale.Error() }
+func (e staleSkillsError) Error() string {
+	update := "`ggw skills install`"
+	if e.result.anyModified() {
+		update = "`ggw skills install --force` (an installed copy was modified)"
+	}
+	return fmt.Sprintf("one or more installed skills are not in sync with this ggw version (run %s to update)", update)
+}
+
 func (e staleSkillsError) JSONPayload() any { return e.result }
 
 var skillsCmd = &cobra.Command{
@@ -291,7 +306,7 @@ locally, so the check can gate scripts and CI.`,
 
 		printSkillsVerifyResult(result)
 		if result.anyStale() {
-			return errSkillsStale
+			return staleSkillsError{result: result}
 		}
 		return nil
 	},

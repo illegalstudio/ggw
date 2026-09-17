@@ -303,7 +303,8 @@ idempotent and reports `updated`.
 When an installed skill no longer matches the one bundled with the running
 binary, interactive commands end with a short stderr notice pointing at the
 destination and at the remedies. The notice never appears under `--json`, never
-on `skills`, `shell-init`, `completion`, `cd`, `exec`, help, or version output,
+on `skills`, `shell-init`, `completion`, `cd`, `exec`, any `--help` or help
+output, shell tab-completion internals, or version output,
 and never when no skill is installed. Check on demand with
 [`ggw skills verify`](#ggw-skills-verify); silence the notice permanently by
 setting `suppress_skills_notice: true` in the

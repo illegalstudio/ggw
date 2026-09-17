@@ -84,3 +84,4 @@ Use `--json` whenever the output is parsed. Parse standard output only; never pa
 - `exec` does not support `--json` at all.
 - On failure, ggw emits a single `{"error": "..."}` object and exits non-zero.
 - `ggw skills install` reports each destination in an `installations` array; a per-destination failure appears in that item's `error` field and does **not** change the exit code.
+- `ggw skills verify` reports each destination in a `verifications` array. It is the one exception to the failure shape above: when an installed skill is stale it exits non-zero but still emits the full `verifications` payload, so read the statuses from it instead of expecting `{"error": ...}`. A bare `{"error": ...}` from `verify` means a command-level failure such as an unknown `--target`.

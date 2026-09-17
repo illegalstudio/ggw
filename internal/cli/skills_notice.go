@@ -78,6 +78,12 @@ func skillNoticeApplies(cmd *cobra.Command) bool {
 	if cmd == nil || cmd == rootCmd {
 		return false // bare `ggw` (help) and --version
 	}
+	if cmd.Hidden {
+		return false // cobra's __complete / __completeNoDesc shell helpers
+	}
+	if help, _ := cmd.Flags().GetBool("help"); help {
+		return false // `ggw <cmd> --help` returns the command itself, not "help"
+	}
 	if strings.HasPrefix(cmd.CommandPath(), rootCmd.Name()+" skills") ||
 		strings.HasPrefix(cmd.CommandPath(), rootCmd.Name()+" completion") {
 		return false
