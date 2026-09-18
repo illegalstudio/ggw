@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Create and push a semantic version tag for release.
 #
-# Usage: scripts/deploy.sh
-#   or:  make deploy
+# Usage: scripts/release.sh
+#   or:  make release
 #
 # Reads the latest v* tag, proposes the next patch version, prompts for
 # confirmation (or a custom version), then creates an annotated tag and
