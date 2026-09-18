@@ -87,9 +87,9 @@ type staleSkillsError struct{ result skillsVerifyResult }
 func (e staleSkillsError) Error() string {
 	update := "`ggw skills install`"
 	if e.result.anyModified() {
-		update = "`ggw skills install --force` (an installed copy was modified)"
+		update = "`ggw skills install --force`"
 	}
-	return fmt.Sprintf("one or more installed skills are not in sync with this ggw version (run %s to update)", update)
+	return fmt.Sprintf("one or more installed skills are not in sync with this ggw version (run %s to update); set suppress_skills_notice: true in ~/.config/ggw/config.yaml to silence the reminder", update)
 }
 
 func (e staleSkillsError) JSONPayload() any { return e.result }

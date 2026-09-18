@@ -133,7 +133,11 @@ func TestStaleSkillsErrorSuggestsForceOnlyForModified(t *testing.T) {
 	modified := skillsVerifyResult{Verifications: []skillVerifyItem{
 		{Target: "agents", Status: ggwskills.VerifyModified},
 	}}
-	if msg := (staleSkillsError{result: modified}).Error(); !strings.Contains(msg, "--force") {
+	msg := staleSkillsError{result: modified}.Error()
+	if !strings.Contains(msg, "--force") {
 		t.Fatalf("modified message should mention --force: %q", msg)
+	}
+	if !strings.Contains(msg, "suppress_skills_notice") {
+		t.Fatalf("message should explain how to silence the reminder: %q", msg)
 	}
 }

@@ -86,6 +86,9 @@ func TestCLISkillsVerifyEmitsPayloadOnStale(t *testing.T) {
 	if !strings.Contains(out, "modified") || !strings.Contains(out, "--force") {
 		t.Fatalf("human verify output missing status or --force advice:\n%s", out)
 	}
+	if !strings.Contains(out, "suppress_skills_notice") {
+		t.Fatalf("human verify output missing the suppression hint:\n%s", out)
+	}
 
 	// A command-level failure (unknown target) still uses the {"error": ...}
 	// shape, with no verifications payload.
