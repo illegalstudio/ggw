@@ -22,6 +22,9 @@ type Config struct {
 	// string here and validated by the caller, so this package stays free of
 	// any dependency on the workspace layer it configures.
 	Mode string `mapstructure:"mode"`
+	// SuppressSkillsNotice disables the stderr reminder ggw prints when an
+	// installed AI agent skill no longer matches the bundled one.
+	SuppressSkillsNotice bool `mapstructure:"suppress_skills_notice"`
 }
 
 // ConfigPath returns the path to the ggw config file: ~/.config/ggw/config.yaml.
@@ -87,6 +90,19 @@ func Mode() (string, bool, error) {
 	return cfg.Mode, true, nil
 }
 
+// SuppressSkillsNotice reports whether the stale-skill notice is disabled. A
+// missing config file or an unset key yields (false, nil).
+func SuppressSkillsNotice() (bool, error) {
+	cfg, err := Load()
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return cfg.SuppressSkillsNotice, nil
+}
+
 // BaseDir returns the configured workspaces base directory (~ expanded) and
 // whether it is set. A missing config file or an empty base_dir yields
 // ("", false, nil); a malformed config yields ("", false, err).
@@ -122,6 +138,10 @@ base_dir: %s
 #
 # Override per run with --wt or --cow.
 mode: worktree
+
+# suppress_skills_notice: set to true to stop ggw from reminding you when an
+# installed AI agent skill no longer matches the one bundled with the binary.
+suppress_skills_notice: false
 `, seedBaseDir)
 
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

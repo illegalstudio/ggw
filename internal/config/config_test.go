@@ -102,6 +102,25 @@ func TestBaseDirErrorsOnMalformedYAML(t *testing.T) {
 	}
 }
 
+func TestSuppressSkillsNotice(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	if got, err := SuppressSkillsNotice(); err != nil || got {
+		t.Fatalf("no config file: got (%v, %v), want (false, nil)", got, err)
+	}
+
+	writeConfig(t, home, "mode: cow\n")
+	if got, err := SuppressSkillsNotice(); err != nil || got {
+		t.Fatalf("key unset: got (%v, %v), want (false, nil)", got, err)
+	}
+
+	writeConfig(t, home, "suppress_skills_notice: true\n")
+	if got, err := SuppressSkillsNotice(); err != nil || !got {
+		t.Fatalf("key true: got (%v, %v), want (true, nil)", got, err)
+	}
+}
+
 func TestLoadAbsoluteBaseDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

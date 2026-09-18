@@ -13,7 +13,7 @@ Use the installed `ggw` executable as the source of truth for the available comm
 2. Run `ggw <command> --help` before using flags whose behavior is unclear.
 3. Every command except `shell-init` must run **inside a git repository**; ggw resolves the repository from the current directory. `create` additionally needs an `origin` remote, because the workspace path is derived from it.
 4. Workspaces are stored under a single derived path, not next to the repository. See `docs/storage.md` in the ggw repository for the layout and slug rules, and `docs/configuration.md` for the optional `~/.config/ggw/config.yaml`.
-5. Refresh this skill after upgrading GGW. Bare `ggw skills install` opens an interactive menu and fails without a terminal, so name the destination explicitly: `ggw skills install --target claude`. `--target` is repeatable, not comma-separated. Install only to destinations the user already has. If GGW reports locally modified skill files, do not add `--force` without the user's approval.
+5. Refresh this skill after upgrading GGW. `ggw skills verify` reports whether each installed copy matches the running binary and exits non-zero when one does not; ggw also prints a stderr notice after interactive commands while a copy is stale (users can silence it with `suppress_skills_notice: true` in the config). Bare `ggw skills install` opens an interactive menu and fails without a terminal, so name the destination explicitly: `ggw skills install --target claude`. `--target` is repeatable, not comma-separated. Install only to destinations the user already has. If GGW reports locally modified skill files, do not add `--force` without the user's approval.
 
 ## Two kinds of workspace, one namespace
 
@@ -84,3 +84,4 @@ Use `--json` whenever the output is parsed. Parse standard output only; never pa
 - `exec` does not support `--json` at all.
 - On failure, ggw emits a single `{"error": "..."}` object and exits non-zero.
 - `ggw skills install` reports each destination in an `installations` array; a per-destination failure appears in that item's `error` field and does **not** change the exit code.
+- `ggw skills verify` reports each destination in a `verifications` array. It is the one exception to the failure shape above: when an installed skill is stale it exits non-zero but still emits the full `verifications` payload, so read the statuses from it instead of expecting `{"error": ...}`. A bare `{"error": ...}` from `verify` means a command-level failure such as an unknown `--target`.

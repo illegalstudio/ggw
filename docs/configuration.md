@@ -12,6 +12,7 @@ ggw reads an optional config file at:
 |------------|--------|-------------|
 | `base_dir` | string | Directory under which all workspaces live, nested as `<base_dir>/<org>/<repo>/<branch-slug>`. A leading `~` is expanded to `$HOME`. |
 | `mode`     | string | What `ggw create` and `ggw pr` make by default: `worktree` (the default) or `cow`. |
+| `suppress_skills_notice` | bool | Set to `true` to silence the stderr notice ggw prints when an installed AI agent skill no longer matches the bundled one. Default `false`. |
 
 ## Precedence
 
@@ -32,6 +33,21 @@ The workspace mode is resolved in this order:
 4. `worktree`
 
 An unknown value is an error wherever it comes from — ggw never guesses.
+
+## Stale-skill notice
+
+After any interactive command, ggw compares the AI agent skills installed under
+`~/.agents/skills/ggw` and `~/.claude/skills/ggw` with the one bundled in the
+running binary. When an installed copy exists and its digest differs, a short
+stderr notice explains how to update (`ggw skills install`), how to check on
+demand (`ggw skills verify`), and how to silence the reminder:
+
+```yaml
+suppress_skills_notice: true
+```
+
+The notice never appears in `--json` output, so scripts are unaffected. Set the
+flag if you deliberately maintain your own edits of the skill.
 
 ## Copy-on-write workspaces
 

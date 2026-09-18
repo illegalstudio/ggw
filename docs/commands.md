@@ -27,6 +27,7 @@ JSON output follows these conventions:
 - `create`, `pr`, `cd`, `delete`, and `shell-init` emit a small object describing the action.
 - `exec` does not support `--json` because it streams another process through stdin, stdout, and stderr.
 - `skills install` emits `{ "name": ..., "installations": [...] }`, never prompts, and reports per-destination failures in each item's `error` field without changing the exit code.
+- `skills verify` emits `{ "name": ..., "verifications": [...] }` and exits non-zero when an installed skill is stale; the JSON payload is still emitted in that case.
 
 ## `ggw list`
 
@@ -297,6 +298,18 @@ The bundled skill is not upgraded automatically. After `brew upgrade ggw` (or an
 other upgrade), re-run `ggw skills install` to refresh it; the command is
 idempotent and reports `updated`.
 
+### Stale-skill notice
+
+When an installed skill no longer matches the one bundled with the running
+binary, interactive commands end with a short stderr notice pointing at the
+destination and at the remedies. The notice never appears under `--json`, never
+on `skills`, `shell-init`, `completion`, `cd`, `exec`, any `--help` or help
+output, shell tab-completion internals, or version output,
+and never when no skill is installed. Check on demand with
+[`ggw skills verify`](#ggw-skills-verify); silence the notice permanently by
+setting `suppress_skills_notice: true` in the
+[config file](configuration.md).
+
 ### JSON output
 
 `ggw --json skills install` never prompts. Without `--target` it installs every
@@ -314,3 +327,53 @@ destination. It emits:
 
 Per-destination failures appear in `error` and do not change the exit code. An
 unknown `--target` is a command-level error and does exit non-zero.
+
+## `ggw skills verify`
+
+Check whether the installed copies of the bundled AI agent skill match the
+skill carried by the running `ggw` binary, using the SHA-256 digests recorded
+at install time. Read-only: nothing is written, nothing is prompted for.
+
+```bash
+# Every known destination
+ggw skills verify
+
+# One destination only
+ggw skills verify --target claude
+
+# Machine-readable, for scripts and CI
+ggw --json skills verify
+```
+
+| Flag | Description |
+|------|-------------|
+| `--target` | Verify only this destination (`agents`, `claude`). Repeatable. |
+
+Each destination reports one status:
+
+| Status | Meaning |
+|---|---|
+| `up-to-date` | matches the bundled skill |
+| `outdated` | installed by ggw, never edited, but from another ggw version — `ggw skills install` refreshes it |
+| `modified` | differs from the bundled skill and was edited locally or not written by ggw — refreshing it needs `ggw skills install --force` |
+| `not-installed` | no skill at this destination |
+
+The exit code is `1` when any installed destination is `outdated` or
+`modified`, so the check can gate scripts. Destinations that are not installed
+do not fail the command.
+
+### JSON output
+
+```json
+{
+  "name": "ggw",
+  "verifications": [
+    { "target": "agents", "path": "/Users/me/.agents/skills/ggw", "status": "outdated" },
+    { "target": "claude", "path": "/Users/me/.claude/skills/ggw", "status": "not-installed" }
+  ]
+}
+```
+
+When the exit code is `1` because a skill is stale, the full payload above is
+still emitted. Per-destination inspection failures appear in the item's `error`
+field and do not change the exit code.
