@@ -83,6 +83,17 @@ to duplicating gigabytes behind your back.
 brew install illegalstudio/tap/ggw
 ```
 
+### mise
+
+```bash
+mise use -g github:illegalstudio/ggw   # install globally
+mise use github:illegalstudio/ggw      # or pin it in the project's mise.toml
+```
+
+ggw is not in the aqua registry, so the `github:` prefix is required. mise
+picks the right release archive for your OS/arch automatically; pin a version
+with `github:illegalstudio/ggw@0.3.3`.
+
 ### Go
 
 ```bash
