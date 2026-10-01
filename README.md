@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/ggw-logo-square.png" alt="GGW logo" width="160">
+</p>
+
 <h1 align="center">GGW</h1>
 
 <p align="center">

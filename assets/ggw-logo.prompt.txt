@@ -1,0 +1,10 @@
+Use case: logo-brand
+Asset type: original logo for GGW, an open source command line tool for ergonomic Git worktrees and copy-on-write workspaces.
+Primary request: Invent a polished, distinctive logo that expresses parallel workspaces growing from a common repository. Create one final horizontal logo lockup, a symbol to the left and the exact lowercase word "ggw" to the right.
+Scene/backdrop: genuinely transparent background.
+Subject: A bold compact geometric W-shaped symbol, conceived as a routed branching path with three small square terminal nodes representing isolated workspaces. The symbol should read first as a strong W and second as a branching diagram. Keep the topology clear, confident, and exceptionally simple, with consistent stroke thickness and generous negative space. Make an original mark rather than reproducing Git's existing diamond logo.
+Style/medium: flat vector-like brand artwork, crisp smooth edges, solid fills, carefully balanced optical spacing, professional developer-tool identity.
+Composition/framing: single centered horizontal lockup, ample transparent margin, symbol approximately the height of the wordmark; no presentation board and no extra variants.
+Color palette: cyan #00ADD8 for the symbol, matching the project's existing README badge color; very dark navy #132433 for the wordmark.
+Text (verbatim): "ggw". Lowercase only, contemporary bold geometric sans serif lettering with subtly rounded corners, excellent legibility.
+Constraints: one logo only; real alpha transparency; no tagline; no additional lettering; no watermark; no mockup; no texture; no gradient; no shadow; no 3D effects; no thin decorative details.
