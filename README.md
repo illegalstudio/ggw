@@ -152,6 +152,29 @@ ggw delete feature/login --without-branch --force  # keep the branch, skip confi
 ggw --version
 ```
 
+For stacked pull requests, `--from` also remembers the starting branch as the
+default base for [GitHub CLI](https://cli.github.com/manual/gh_pr_create):
+
+```bash
+ggw create feat2 --from feat1 --wt
+cd "$(ggw cd feat2)"
+# Make and commit your changes. Publish feat1 from its own workspace first.
+git push -u origin feat2
+git fetch origin
+gh pr create                         # targets feat1
+```
+
+GGW stores `branch.feat2.gh-merge-base=feat1` in the repository's Git config.
+This works with worktrees and copy-on-write workspaces, including unpublished
+local base branches. If `feat1` lives in a managed copy-on-write workspace,
+GGW imports its commits automatically for either `--wt` or `--cow`. A new
+copy-on-write snapshot still inherits files from the main repository, without
+the parent's uncommitted changes. The base must exist on GitHub before opening
+the PR.
+Existing branches and PR base settings are preserved; tags, commits and an
+omitted `--from` do not set a PR base. Use `gh pr create --base main` to override
+the saved base. See [Commands](docs/commands.md#ggw-create) for details.
+
 To make every new worktree immediately ready to use, add a `.ggw.yaml` at your
 repository root (a copy-on-write workspace needs far less of it — it already
 has your untracked files):

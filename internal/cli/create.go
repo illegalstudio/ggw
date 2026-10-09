@@ -18,6 +18,14 @@ var createCmd = &cobra.Command{
 If branch is omitted, ggw generates a random Docker-style name
 (adjective-noun), e.g. intelligent-elephant.
 
+When --from names a branch and a new branch is created, ggw saves it as
+the default base for gh pr create (branch.<branch>.gh-merge-base).
+Existing PR base settings are preserved. Tags and commits do not set a PR base.
+
+An explicit --from branch can also come from a managed copy-on-write workspace.
+Its commits are fetched locally for either workspace kind. New cow snapshots
+still come from the main repository, without the parent's uncommitted files.
+
 Two kinds of workspace are available, both stored in the same place:
 
   worktree  a git worktree — git tracks it, untracked files are not carried over
@@ -123,7 +131,7 @@ The default comes from ` + "`mode`" + ` in ~/.config/ggw/config.yaml and is
 }
 
 func init() {
-	createCmd.Flags().String("from", "", "Base ref for new branches (default: HEAD)")
+	createCmd.Flags().String("from", "", "Base ref for new branches; branch refs also set the default PR base (default: HEAD)")
 	createCmd.Flags().Bool("bare", false, "Create the workspace without running .ggw.yaml provisioning")
 	registerModeFlags(createCmd)
 	registerAsFlag(createCmd)

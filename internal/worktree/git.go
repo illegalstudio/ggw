@@ -2,6 +2,7 @@ package worktree
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -192,6 +193,7 @@ type CreateOptions struct {
 	Branch   string // branch name (passed verbatim to git)
 	DestPath string // absolute filesystem path for the new worktree
 	From     string // optional base ref; only used when creating a new branch
+	PRBase   string // named PR base when From is an imported commit
 }
 
 // Create creates a new worktree for opts.Branch at opts.DestPath.
@@ -206,12 +208,14 @@ func Create(opts CreateOptions) error {
 	}
 
 	args := []string{"-C", opts.RepoPath, "worktree", "add"}
+	newBranch := false
 	switch {
 	case BranchExistsLocal(opts.RepoPath, opts.Branch):
 		args = append(args, opts.DestPath, opts.Branch)
 	case RemoteBranchRef(opts.RepoPath, opts.Branch) != "":
 		args = append(args, "--track", "-b", opts.Branch, opts.DestPath, RemoteBranchRef(opts.RepoPath, opts.Branch))
 	default:
+		newBranch = true
 		base := opts.From
 		if base == "" {
 			base = "HEAD"
@@ -224,6 +228,17 @@ func Create(opts CreateOptions) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git worktree add failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	if newBranch {
+		var err error
+		if opts.PRBase != "" {
+			err = savePRBase(opts.DestPath, opts.Branch, opts.PRBase)
+		} else {
+			err = configurePRBase(opts.DestPath, opts.Branch, opts.From)
+		}
+		if err != nil {
+			return errors.Join(err, Remove(opts.RepoPath, opts.DestPath, true))
+		}
 	}
 	return nil
 }
@@ -351,6 +366,7 @@ type CheckoutOptions struct {
 	RepoPath string // repository to check out in
 	Branch   string // branch name (passed verbatim to git)
 	From     string // optional base ref; only used when creating a new branch
+	PRBase   string // named PR base when From is an imported commit
 }
 
 // Checkout switches the repository at opts.RepoPath onto opts.Branch, applying
@@ -362,12 +378,14 @@ type CheckoutOptions struct {
 // directory already exists and only its HEAD has to move.
 func Checkout(opts CheckoutOptions) error {
 	args := []string{"-C", opts.RepoPath, "checkout"}
+	newBranch := false
 	switch {
 	case BranchExistsLocal(opts.RepoPath, opts.Branch):
 		args = append(args, opts.Branch)
 	case RemoteBranchRef(opts.RepoPath, opts.Branch) != "":
 		args = append(args, "--track", "-b", opts.Branch, RemoteBranchRef(opts.RepoPath, opts.Branch))
 	default:
+		newBranch = true
 		base := opts.From
 		if base == "" {
 			base = "HEAD"
@@ -380,6 +398,12 @@ func Checkout(opts CheckoutOptions) error {
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("git checkout %s failed: %w: %s", opts.Branch, err, strings.TrimSpace(stderr.String()))
+	}
+	if newBranch {
+		if opts.PRBase != "" {
+			return savePRBase(opts.RepoPath, opts.Branch, opts.PRBase)
+		}
+		return configurePRBase(opts.RepoPath, opts.Branch, opts.From)
 	}
 	return nil
 }

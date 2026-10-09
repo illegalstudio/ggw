@@ -192,24 +192,42 @@ func Create(opts CreateOptions) (string, error) {
 		return "", err
 	}
 
+	parent, err := cowParentForCreate(opts)
+	if err != nil {
+		return "", err
+	}
+	from, prBase := opts.From, ""
+	if parent != nil {
+		from, prBase = parent.Head, parent.Branch
+	}
+
 	switch opts.Kind {
 	case KindWorktree:
 		target, err := opts.Ctx.WorktreeTarget()
 		if err != nil {
 			return "", err
 		}
+		if parent != nil {
+			if err := layout.EnsureFreeDestination(dest); err != nil {
+				return "", err
+			}
+			if err := worktree.FetchCommit(target, parent.Path, parent.Head); err != nil {
+				return "", err
+			}
+		}
 		if err := worktree.Create(worktree.CreateOptions{
 			RepoPath: target,
 			Branch:   opts.Branch,
 			DestPath: dest,
-			From:     opts.From,
+			From:     from,
+			PRBase:   prBase,
 		}); err != nil {
 			return "", err
 		}
 		return dest, nil
 
 	case KindCoW:
-		return createCoW(opts, dest)
+		return createCoW(opts, dest, parent)
 
 	default:
 		return "", fmt.Errorf("unknown workspace kind %q", opts.Kind)
@@ -220,7 +238,7 @@ func Create(opts CreateOptions) (string, error) {
 // the requested branch. Everything after the snapshot is rolled back on
 // failure: a half-built snapshot has nothing worth keeping, since its branch
 // only ever existed inside it.
-func createCoW(opts CreateOptions, dest string) (string, error) {
+func createCoW(opts CreateOptions, dest string, parent *Workspace) (string, error) {
 	if err := PrepareCoW(opts.Ctx, dest); err != nil {
 		return "", err
 	}
@@ -232,11 +250,20 @@ func createCoW(opts CreateOptions, dest string) (string, error) {
 		}
 	}()
 
+	from, prBase := opts.From, ""
+	if parent != nil {
+		if err := worktree.FetchCommit(dest, parent.Path, parent.Head); err != nil {
+			return "", err
+		}
+		from, prBase = parent.Head, parent.Branch
+	}
+
 	if opts.Branch != "" {
 		if err := worktree.Checkout(worktree.CheckoutOptions{
 			RepoPath: dest,
 			Branch:   opts.Branch,
-			From:     opts.From,
+			From:     from,
+			PRBase:   prBase,
 		}); err != nil {
 			return "", err
 		}

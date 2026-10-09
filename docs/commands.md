@@ -61,7 +61,7 @@ ggw create feature/login --bare       # skip provisioning for this run
 
 | Flag | Description |
 |------|-------------|
-| `--from` | Base ref used when creating a new local branch. Defaults to `HEAD`. |
+| `--from` | Base ref used when creating a new local branch. Branch refs also set the default base for `gh pr create`. Defaults to `HEAD`. |
 | `--as` | Directory name for the workspace. Defaults to the slugified branch. |
 | `--cow` | Make a copy-on-write snapshot instead of a worktree. |
 | `--wt` | Make a git worktree. |
@@ -73,6 +73,58 @@ Behavior:
 - If the branch exists locally, `ggw` checks it out into a new workspace.
 - If `origin/<branch>` exists locally, `ggw` creates a tracking branch.
 - Otherwise, `ggw` creates a new branch from `--from` or `HEAD`.
+
+When a new branch is created from an explicit branch reference, GGW saves
+`branch.<new-branch>.gh-merge-base` in the repository's local Git config.
+[GitHub CLI](https://cli.github.com/manual/gh_pr_create) reads this setting when
+you run `gh pr create`; an explicit `--base` takes precedence.
+
+- `ggw create feat2 --from feat1` saves `feat1`, even if it is not published yet.
+- `--from origin/feat1` saves `feat1`. Full local and remote branch refs are also supported.
+- Tags, commit IDs, revision expressions, `HEAD` and remote `HEAD` aliases do not set a PR base. Neither does omitting `--from`.
+- Existing PR base settings are preserved. If the destination branch already exists locally or as `origin/<branch>`, `--from` is ignored and no PR base is set.
+- Both workspace kinds support this. For copy-on-write workspaces, the setting belongs to the snapshot's independent repository.
+
+An explicit `--from` branch can live in a managed copy-on-write workspace.
+GGW imports its committed history automatically, including when the destination
+is a normal worktree:
+
+```bash
+ggw create feat2 --from feat1 --cow
+# Or create a normal worktree from the same parent:
+ggw create feat3 --from feat1 --wt
+```
+
+Parent selection for a new branch follows this order:
+
+1. If run inside a copy-on-write workspace whose current branch is the named parent, use that workspace's tip.
+2. Otherwise, use the ref in the original repository if it exists.
+3. Otherwise, find a managed copy-on-write workspace on exactly that branch. If several match, GGW reports their paths; run the command from inside the intended parent workspace to select it.
+
+The import is local and does not create or move the parent branch in the
+original repository. Only committed history is imported. New copy-on-write
+snapshots still take files and provisioning from the main repository, so they
+do not inherit the parent's uncommitted changes or untracked files. Linked
+worktrees share refs as usual. Each new child uses the selected parent's current
+commit; existing children are not updated automatically.
+
+GGW does not push branches or require `gh` for this operation. Before opening a
+stacked PR, publish its base branch to the target GitHub repository and publish
+the feature branch. Publish each from its own workspace, which also works when
+the branches live in independent copy-on-write repositories:
+
+```bash
+cd "$(ggw cd feat1)"
+git push -u origin feat1
+cd "$(ggw cd feat2)"
+git push -u origin feat2
+git fetch origin                     # refresh the base for gh's commit comparison
+gh pr create                         # feat2 into feat1
+```
+
+The saved base is a default for PR creation. It does not update branches or
+change automatically when a parent PR is merged. To change it later, run
+`git config branch.feat2.gh-merge-base main`.
 
 The branch name is passed to git unchanged. Only the directory name is slugified, so `feature/login` is stored as `feature-login`.
 
